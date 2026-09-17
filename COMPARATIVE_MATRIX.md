@@ -38,20 +38,21 @@ The following deep-dive matrix contrasts Solution A, Solution B, and Native Open
 Selecting between Traefik CRDs (Solution A) and Gateway API (Solution B) requires evaluating organization maturity, infrastructure roadmap, and operational tooling.
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 340, "nodePadding": 24}}}%%
 flowchart TD
     Start(["<b>Ingress Architecture Decision Flow</b><br/>Red Hat OpenShift 4.14+ on AWS"])
 
-    D1("<b>Step 1: OpenShift Native Fit</b><br/>Do standard OpenShift Routes satisfy<br/>all ingress, FQDN & security needs?")
+    D1("<b>Step 1: OpenShift Native Ingress Fit</b><br/>Do standard OpenShift Routes satisfy all basic<br/>ingress, wildcard FQDN & security needs?")
 
-    NativeRoute["<b>Use Native OpenShift Routes</b><br/>• Out-of-the-box Ingress Operator<br/>• Zero extra controller overhead<br/>• Default *.apps wildcard domain"]
+    NativeRoute["<b>Use Native OpenShift Routes</b><br/>• Out-of-the-box Ingress Operator management<br/>• Zero additional controller overhead<br/>• Default *.apps cluster wildcard domain"]
 
-    D2("<b>Step 2: Multi-Cloud Parity</b><br/>Is cross-platform portability across<br/>AWS EKS, GKE, or On-Prem required?")
+    D2("<b>Step 2: Multi-Cloud Parity & Portability</b><br/>Is cross-platform manifest portability across<br/>AWS EKS, GKE, or On-Prem required?")
 
-    D3("<b>Step 3: Multi-Tenancy & RBAC</b><br/>Is strict Platform Admin vs. App Dev<br/>persona separation mandatory?")
+    D3("<b>Step 3: Enterprise Multi-Tenancy & RBAC</b><br/>Is strict Platform Admin vs. App Developer<br/>tri-persona separation mandatory?")
 
-    SolB["<b>Solution B: Gateway API</b><br/>• CNCF standard v1.x<br/>• Tri-persona RBAC boundaries<br/>• Zero vendor lock-in"]
+    SolB["<b>Solution B: Kubernetes Gateway API</b><br/>• CNCF de jure standard (v1.x specification)<br/>• Role-oriented Gateway vs. HTTPRoute boundaries<br/>• Complete zero vendor lock-in across clouds"]
 
-    SolA["<b>Solution A: Traefik CRDs</b><br/>• Battle-tested IngressRoutes<br/>• High velocity for teams<br/>• Dynamic Go hot-reloads"]
+    SolA["<b>Solution A: Traefik Proxy CRDs</b><br/>• Battle-tested IngressRoute & Middleware CRDs<br/>• High delivery velocity for unified engineering teams<br/>• Sub-second dynamic in-memory configuration reload"]
 
     Start --> D1
     D1 -->|"Yes: Basic"| NativeRoute
@@ -73,6 +74,12 @@ flowchart TD
     style PadA fill:none,stroke:none;
     style PadB fill:none,stroke:none;
 ```
+
+> [!TIP]
+> **Diagram Sizing & GitHub Safe-Zone Architecture (Live Browser Profiling Insights):**
+> This flowchart incorporates visual layout optimizations derived from live browser profiling against GitHub's markdown rendering engine (`viewscreen.githubusercontent.com`):
+> 1. **Expanded Node Dimensioning (`wrappingWidth: 340, nodePadding: 24`):** Overrides Mermaid's default narrow 200px `foreignObject` text constraint with 24px of internal clearance on all sides. This guarantees that titles and descriptive architectural bullet points have ample room, preventing cramped multi-line pillars and border collisions across macOS (SF Pro), Windows (Segoe UI), and Linux (Noto/Liberation Sans) font engines.
+> 2. **GitHub Pan/Zoom Control Safe-Zone (`~~~ Pad`):** When viewed in responsive viewports between 1024px and 1280px (or when GitHub's file tree sidebar is toggled open), GitHub automatically injects an 8-button floating navigation pan/zoom overlay widget anchored to `position: absolute; bottom: 8px; right: 8px;`. The non-rendered terminal spacer anchors (`PadA` and `PadB`) reserve an intentional vertical clearance buffer below `Solution A` and `Solution B`, preventing GitHub's floating controls from hovering over and obscuring node text.
 
 ### Heuristic 1: Choose Solution B (Gateway API) When:
 - **Enterprise Multi-Tenancy is Critical:** Your platform team manages the cloud infrastructure (AWS NLB, global TLS certificates, DNS zones), while multiple application development teams manage their own service endpoints and canary releases independently.

@@ -370,7 +370,47 @@ oc exec -n traefik-crd-poc "${CLIENT_POD}" -- \
 
 ---
 
-## Architectural Comparison & Further Reading
+## Architectural Comparison & Ingress Decision Flow
+
+To guide platform engineering teams on whether to adopt Traefik CRDs (Solution A), Kubernetes Gateway API (Solution B), or stick with Native OpenShift Routes, evaluate the following architecture decision framework:
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 340, "nodePadding": 24}}}%%
+flowchart TD
+    Start(["<b>Ingress Architecture Decision Flow</b><br/>Red Hat OpenShift 4.14+ on AWS"])
+
+    D1("<b>Step 1: OpenShift Native Ingress Fit</b><br/>Do standard OpenShift Routes satisfy all basic<br/>ingress, wildcard FQDN & security needs?")
+
+    NativeRoute["<b>Use Native OpenShift Routes</b><br/>• Out-of-the-box Ingress Operator management<br/>• Zero additional controller overhead<br/>• Default *.apps cluster wildcard domain"]
+
+    D2("<b>Step 2: Multi-Cloud Parity & Portability</b><br/>Is cross-platform manifest portability across<br/>AWS EKS, GKE, or On-Prem required?")
+
+    D3("<b>Step 3: Enterprise Multi-Tenancy & RBAC</b><br/>Is strict Platform Admin vs. App Developer<br/>tri-persona separation mandatory?")
+
+    SolB["<b>Solution B: Kubernetes Gateway API</b><br/>• CNCF de jure standard (v1.x specification)<br/>• Role-oriented Gateway vs. HTTPRoute boundaries<br/>• Complete zero vendor lock-in across clouds"]
+
+    SolA["<b>Solution A: Traefik Proxy CRDs</b><br/>• Battle-tested IngressRoute & Middleware CRDs<br/>• High delivery velocity for unified engineering teams<br/>• Sub-second dynamic in-memory configuration reload"]
+
+    Start --> D1
+    D1 -->|"Yes: Basic"| NativeRoute
+    D1 -->|"No: Advanced"| D2
+
+    D2 -->|"Yes: Multi-Cloud"| SolB
+    D2 -->|"No: OCP Only"| D3
+
+    D3 -->|"Yes: Strict RBAC"| SolB
+    D3 -->|"No: Unified Tooling"| SolA
+
+    SolB ~~~ PadB[" "]
+    SolA ~~~ PadA[" "]
+
+    classDef decision fill:#f3f0ff,stroke:#7c3aed,stroke-width:2px;
+    classDef outcome fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px;
+    class D1,D2,D3 decision;
+    class NativeRoute,SolA,SolB outcome;
+    style PadA fill:none,stroke:none;
+    style PadB fill:none,stroke:none;
+```
 
 For an exhaustive architectural matrix comparing **Traefik CRDs**, **Kubernetes Gateway API**, and **Native OpenShift Routes (HAProxy)** across security, multi-tenancy, AWS integration, and performance, see:  
 👉 [**COMPARATIVE_MATRIX.md**](./COMPARATIVE_MATRIX.md)
