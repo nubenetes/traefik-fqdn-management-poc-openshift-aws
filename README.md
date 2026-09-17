@@ -22,6 +22,10 @@
   <img src="https://img.shields.io/badge/Context-://github.com/nubenetes-8A2BE2?style=flat-square&logo=git&logoColor=white" alt="Repo Context"/>
 </p>
 
+<p align="center">
+  <img src="./assets/traefik_openshift_advanced_fqdn_architecture.jpg" alt="Traefik Proxy & Gateway API on Red Hat OpenShift: Advanced FQDN & Traffic Management Architecture Infographic" width="100%"/>
+</p>
+
 ---
 
 ## Executive Summary
