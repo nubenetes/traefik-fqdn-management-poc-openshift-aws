@@ -106,6 +106,7 @@ Stick with native OpenShift Routes if your workloads satisfy the following crite
 ### When Bypassing OpenShift Routes for Traefik Becomes Strictly Necessary
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 340, "nodePadding": 24, "diagramPadding": 30}}}%%
 flowchart LR
     subgraph Limits ["Native OpenShift Limitations"]
         direction TB
@@ -128,6 +129,11 @@ flowchart LR
     L3 ==>|"Solved by"| S3
     L4 ==>|"Solved by"| S4
 ```
+
+> [!TIP]
+> **Diagram Sizing & Layout Architecture:**
+> Configured with `wrappingWidth: 340, nodePadding: 24, diagramPadding: 30`, expanding node boxes to ~380px with 24px of internal clearance on all sides and 30px diagram boundary margins. This ensures high readability, balanced side-by-side alignment, and zero text-to-border collision across GitHub viewports.
+
 
 
 #### Detailed Technical Drivers for Bypassing OpenShift Routes:
