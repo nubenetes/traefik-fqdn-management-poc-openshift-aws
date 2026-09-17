@@ -73,6 +73,24 @@ The repository is tagged and indexed with the following domain taxonomy:
         └── 04-httproute-east-west.yaml         # East-West HTTPRoute with BackendTLSPolicy mTLS enforcement
 ```
 
+### Direct File & Directory Navigation
+
+- 📄 [**COMPARATIVE_MATRIX.md**](./COMPARATIVE_MATRIX.md) — Comprehensive comparative matrix & OpenShift dilemma analysis
+- 📁 [**manifests/common/**](./manifests/common/)
+  - [`00-namespaces-rbac-scc.yaml`](./manifests/common/00-namespaces-rbac-scc.yaml) — OpenShift SCC & RBAC
+  - [`01-mock-microservices.yaml`](./manifests/common/01-mock-microservices.yaml) — Workloads & TLS secrets
+  - [`02-traefik-controller-deployment.yaml`](./manifests/common/02-traefik-controller-deployment.yaml) — Traefik v3.0+ controller & AWS NLB
+- 📁 [**manifests/solution-a-traefik-crds/**](./manifests/solution-a-traefik-crds/)
+  - [`01-ingressroute-north-south.yaml`](./manifests/solution-a-traefik-crds/01-ingressroute-north-south.yaml) — Edge IngressRoute & Route 53 sync
+  - [`02-middleware-security.yaml`](./manifests/solution-a-traefik-crds/02-middleware-security.yaml) — HSTS, CORS & IP allowlists
+  - [`03-ingressroute-east-west.yaml`](./manifests/solution-a-traefik-crds/03-ingressroute-east-west.yaml) — Zero-Trust mTLS & TLSOption
+- 📁 [**manifests/solution-b-gateway-api/**](./manifests/solution-b-gateway-api/)
+  - [`01-gateway-class.yaml`](./manifests/solution-b-gateway-api/01-gateway-class.yaml) — GatewayClass definition
+  - [`02-gateway-aws.yaml`](./manifests/solution-b-gateway-api/02-gateway-aws.yaml) — AWS NLB Gateway & listeners
+  - [`03-httproute-north-south.yaml`](./manifests/solution-b-gateway-api/03-httproute-north-south.yaml) — Edge HTTPRoute with native filters
+  - [`04-httproute-east-west.yaml`](./manifests/solution-b-gateway-api/04-httproute-east-west.yaml) — East-West HTTPRoute & BackendTLSPolicy
+
+
 ---
 
 ## North-South Traffic Flow (Edge to Workload)
@@ -377,5 +395,6 @@ oc exec -n traefik-crd-poc "${CLIENT_POD}" -- \
 
 ## Architectural Comparison & Further Reading
 
-For an exhaustive architectural matrix comparing **Traefik CRDs**, **Kubernetes Gateway API**, and **Native OpenShift Routes (HAProxy)** across security, multi-tenancy, AWS integration, and performance, see:
-👉 [**COMPARATIVE_MATRIX.md**](file:///home/inaki/github/traefik-fqdn-management-poc-openshift-aws/COMPARATIVE_MATRIX.md)
+For an exhaustive architectural matrix comparing **Traefik CRDs**, **Kubernetes Gateway API**, and **Native OpenShift Routes (HAProxy)** across security, multi-tenancy, AWS integration, and performance, see:  
+👉 [**COMPARATIVE_MATRIX.md**](./COMPARATIVE_MATRIX.md)
+

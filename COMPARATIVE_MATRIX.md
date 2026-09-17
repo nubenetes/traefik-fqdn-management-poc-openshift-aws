@@ -121,3 +121,13 @@ graph LR
 5. **Multi-Domain AWS Route 53 Automation via ExternalDNS:**
    - *OpenShift Route Limitation:* The OpenShift Ingress Operator natively manages only the default cluster wildcard DNS record. Exposing arbitrary corporate external FQDNs (`company.com`, `api.company.com`) requires external automation scripts or manual DNS provisioning in AWS Route 53.
    - *Traefik Advantage:* Native integration with ExternalDNS via standard annotations (`external-dns.alpha.kubernetes.io/hostname`) allows immediate, declarative synchronization of public and private AWS Route 53 hosted zones whenever a new `IngressRoute` or `Gateway` is deployed.
+
+---
+
+## Navigation & Manifest References
+
+- 🏠 **Main Architecture & Deployment Guide:** [README.md](./README.md)
+- 📁 **Solution A Manifests (Traefik CRDs):** [manifests/solution-a-traefik-crds/](./manifests/solution-a-traefik-crds/)
+- 📁 **Solution B Manifests (Gateway API):** [manifests/solution-b-gateway-api/](./manifests/solution-b-gateway-api/)
+- 📁 **Common Manifests (OpenShift RBAC & Controller):** [manifests/common/](./manifests/common/)
+
