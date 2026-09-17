@@ -26,6 +26,33 @@
   <img src="./assets/traefik_openshift_advanced_fqdn_architecture.jpg" alt="Traefik Proxy & Gateway API on Red Hat OpenShift: Advanced FQDN & Traffic Management Architecture Infographic" width="100%"/>
 </p>
 
+### 🧭 Architectural Infographic Breakdown
+
+The visual infographic above provides an executive architecture overview of the entire reference implementation. Below is the structured breakdown of each core component, traffic flow, and decision heuristic illustrated:
+
+* **1. The OpenShift Routing Dilemma & HAProxy Router Bypass:**
+  * **The Challenge:** OpenShift's native router (HAProxy) is optimal for basic web applications under the `*.apps` wildcard, but exhibits operational friction when handling sub-second dynamic route propagation, multi-tenant RBAC boundary segregation, and East-West intra-cluster mutual TLS (mTLS).
+  * **Direct Router Bypass:** By binding the AWS Network Load Balancer (NLB) directly to Traefik Proxy's `LoadBalancer` Service, the architecture eliminates double-proxy hop latency and prevents HAProxy configuration reload events (`haproxy -f ...`) under high traffic volumes.
+  * **Non-Root & Security Context Constraints (SCC):** Traefik runs entirely unprivileged under non-root UID `65532` in strict compliance with OpenShift's `restricted-v2` SCC, binding internally to unprivileged ports (`8000/8443`) mapped to external standard ports (`80/443`) by the AWS NLB.
+
+* **2. North-South Traffic Flow (Edge to Workload):**
+  * **Automated DNS & Edge Resolution:** The ExternalDNS operator monitors annotations on Ingress resources, synchronizing AWS Route 53 Alias A-records with the AWS NLB within 60 seconds with zero manual ticketing.
+  * **Layer 4 TCP Ingestion (PROXY Protocol v2):** The AWS NLB operates at Layer 4 and injects PROXY protocol v2 headers into the TCP stream, ensuring downstream pods receive true client source IPs.
+  * **Dual Ingress Engine Comparison:**
+    * **Solution A (Traefik CRDs):** Evaluates `IngressRoute` and `Middleware` CRDs directly in memory, delivering sub-second hot-reloads and advanced pipeline chaining (HSTS, CSP, CORS, custom header manipulation).
+    * **Solution B (Gateway API):** Implements the CNCF standard (`GatewayClass`, `Gateway`, `HTTPRoute`), separating infrastructure lifecycle from application developer routing rules with cross-namespace selector delegation.
+
+* **3. East-West Traffic & Zero-Trust Architecture (Internal Horizon):**
+  * **Cryptographic mTLS Enforcement:** Enforces strict TLS 1.3 mutual authentication (`clientAuthType: RequireAndVerifyClientCert`) validated against internal corporate Root CAs without injecting sidecar proxies.
+  * **Anti-Spoofing & Network Perimeter Validation:** Traefik verifies that the TLS Server Name Indication (SNI) matches the HTTP `Host` header, while the `ipAllowList` middleware ensures callers originate strictly from within the OpenShift OVN-Kubernetes pod network (`10.128.0.0/14`) and VPC subnets (`10.0.0.0/16`).
+  * **Internal FQDN Routing vs. Ephemeral Pod IPs:** Internal callers target stable in-cluster FQDNs (e.g., `service-b.traefik-crd-poc.svc.cluster.local`), avoiding fragile pod IP tracking and establishing centralized access logging.
+  * **Declarative Upstream Trust Anchoring:** Solution A pins backend identities via `ServersTransport`; Solution B standardizes upstream pod TLS validation via the Gateway API `BackendTLSPolicy` (`gateway.networking.k8s.io/v1alpha3`).
+
+* **4. Comparative Matrix & Ingress Decision Flow:**
+  * **Native OpenShift Routes (1. Native Fit):** Best for day-1 basic web workloads utilizing the cluster wildcard (`*.apps`) where zero additional controller overhead is the priority.
+  * **Traefik CRDs (Solution A / 3. Velocity):** Best for unified engineering teams seeking battle-tested middleware pipelines, rapid delivery velocity, and sub-second in-memory configuration updates.
+  * **Kubernetes Gateway API (Solution B / 2. Portability & RBAC):** Best for multi-cloud parity (OpenShift, AWS EKS, Google GKE), strict RBAC separation between Platform Admins and App Developers, and long-term CNCF standardization.
+
 ---
 
 ## Executive Summary
