@@ -1,0 +1,330 @@
+# ==============================================================================
+# Enterprise Red Hat OpenShift (v4.14+) / AWS (ROSA) Deployment
+# Repository: https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+# Context: ://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+#
+# File: manifests/common/01-mock-microservices.yaml
+# Description:
+#   Deploys standard mock backend workloads ('service-a' as consumer client,
+#   'service-b' as upstream provider) and pre-provisions TLS secrets and internal
+#   CA certificates for North-South and East-West mTLS validation.
+#   Fully compliant with OpenShift v4.14+ 'restricted-v2' SCC guidelines.
+# ==============================================================================
+
+---
+# ------------------------------------------------------------------------------
+# Mock TLS Secrets for External Ingress (*.company.com / company.com)
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: production-tls-secret
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/managed-by: cert-manager
+type: kubernetes.io/tls
+data:
+  # Base64 encoded self-signed test certificate for *.company.com and company.com
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJqVENDQVRhZ0F3SUJBZ0lVTUpic1pVRXlaaWpWcjh3RzE3M0tWc0VvRW5vd0NnWUlLb1pJemowRUF3SXcKRVRFUE1BMEdBMVVFQXd3R1kyOXRjR0Z1ZVRBZUZ3MHlOREExTURFeE1qSTFNRFphRncweU5UQTFNRFF4TWpJMQpNRFphTUJVeEV6QVJCZ05WQkFNTUNtTnZiWEJoYm5rdVkyOXRNQmt3aGlPZ0tvWkl6ajBFQVFjRFFnQUVreC9kCmZ0Nlp3RTR0MjlzQ3Y3R3lQNWU5clpRNmt3TXlhY052S0E3QkhzSmZkVWl3c3FzMmp1V2h5ekVnNEZ0NlluSmsKMSt4Smp6cStCajVDSnpJekU2TlBNRTAwQ3dZRFZSMFBCUVFEQXdJRm9EQU1CZ05WSFJNQkFmOEVBakFBTUIwRwpBMVVkRGdRV0JCU3A4V1QzWjZ6K0Nxc1pTcFkrRk0ra3ZtS2k5VEFUQmdOVkhSRUVRREFRZ2d4amIyMXdZVzU1CkxXTnZiVEFLQmdncWhrak9QUVFEQWdOSkFEQkdBaUVBcThvOGV3TXE5VGdCWTFrSG1qWk5Qcm8wZkhGZ2w3QWkKM3k2V2h3UkU1TkVDSVFDZ0YyQ09rT1p6Q3k4Y01hUkx4UytPcHJtdFh6RktEa2l3d0V5dTRaN2hBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1JR0NB金のT0NnQVFjRFFnQUVreC9kZnQ2WndFNHQyOXNDdjdHeVA1ZTlyWlE2a3dNeWFjTnZLQTdCSHNKZmRVaXdzcXMyanVXRXl6RWc0RnQ2WW5KawoxK3hKanpxK0JqNUNaekl6RWdBQjBpMkJjNldldkdEQXFmSG9YcmY4b1J4bXNnMEpIeWd5UFlEbUFlQ3ZqRFFXNA==
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: production-tls-secret
+  namespace: traefik-gateway-poc
+  labels:
+    app.kubernetes.io/managed-by: cert-manager
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJqVENDQVRhZ0F3SUJBZ0lVTUpic1pVRXlaaWpWcjh3RzE3M0tWc0VvRW5vd0NnWUlLb1pJemowRUF3SXcKRVRFUE1BMEdBMVVFQXd3R1kyOXRjR0Z1ZVRBZUZ3MHlOREExTURFeE1qSTFNRFphRncweU5UQTFNRFF4TWpJMQpNRFphTUJVeEV6QVJCZ05WQkFNTUNtTnZiWEJoYm5rdVkyOXRNQmt3aGlPZ0tvWkl6ajBFQVFjRFFnQUVreC9kCmZ0Nlp3RTR0MjlzQ3Y3R3lQNWU5clpRNmt3TXlhY052S0E3QkhzSmZkVWl3c3FzMmp1V2h5ekVnNEZ0NlluSmsKMSt4Smp6cStCajVDSnpJekU2TlBNRTAwQ3dZRFZSMFBCUVFEQXdJRm9EQU1CZ05WSFJNQkFmOEVBakFBTUIwRwpBMVVkRGdRV0JCU3A4V1QzWjZ6K0Nxc1pTcFkrRk0ra3ZtS2k5VEFUQmdOVkhSRUVRREFRZ2d4amIyMXdZVzU1CkxXTnZiVEFLQmdncWhrak9QUVFEQWdOSkFEQkdBaUVBcThvOGV3TXE5VGdCWTFrSG1qWk5Qcm8wZkhGZ2w3QWkKM3k2V2h3UkU1TkVDSVFDZ0YyQ09rT1p6Q3k4Y01hUkx4UytPcHJtdFh6RktEa2l3d0V5dTRaN2hBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1JR0NB金のT0NnQVFjRFFnQUVreC9kZnQ2WndFNHQyOXNDdjdHeVA1ZTlyWlE2a3dNeWFjTnZLQTdCSHNKZmRVaXdzcXMyanVXRXl6RWc0RnQ2WW5KawoxK3hKanpxK0JqNUNaekl6RWdBQjBpMkJjNldldkdEQXFmSG9YcmY4b1J4bXNnMEpIeWd5UFlEbUFlQ3ZqRFFXNA==
+---
+# ------------------------------------------------------------------------------
+# Internal East-West Root CA and mTLS Certificates
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: internal-ca-secret
+  namespace: traefik-crd-poc
+type: Opaque
+data:
+  ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJkakNDQVRhZ0F3SUJBZ0lVSWk0UGlKdWlqRzV3R2l0WlVvckd2VWlzdFBBd0NnWUlLb1pJemowRUF3SXcKRlRFVE1CRUdBMVVFQXd3S2FXNTBaWEp1WVd3dFkyRXdIaGNOTWpReE1UQTBPREV5TlRVM1doY05NalV4TVRBMApPREV5TlRVM1dqQlZNUk13RVFZRFZRUUREQXByYm5SbGNtNWhiQzFqWVRGaE1CY0dCeXFHU000OUFnRUdDQ3FHClNBTUVCVDBEQVFBREE0R05BRENBRGlrVzN6bHRpOGtQNFdDTU4wSk8xU1RhKzV6V0t5bFp5N3k1N25sMEg4TmsKSzZqcmZ4dDhkdk01Z2JNYVlZSFdScEp3V3VyU3J5R2JjR2hHOGpGQmZJclhvMDB3S3pBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUSNEQFFVcFlCeS9sUWF5K0V6Y0hCczh6aVhyCkN2bXRrV1ZGTURBS0JnZ3Foa2pPUFFRREFnTkpBREJHQWlFQXoxd0s4Z3B1V3NkaDlaZUp3UWZ2VUR5MndhNVMKTnB4ZFlSZm0yRldxQlh3Q0lRQ1hRMW5UaGpuWFlvTWp6bDVqSldnQnB0RFpnMWtwUWQ4N25hYkVpSUZlR0E9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: internal-ca-secret
+  namespace: traefik-gateway-poc
+type: Opaque
+data:
+  ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJkakNDQVRhZ0F3SUJBZ0lVSWk0UGlKdWlqRzV3R2l0WlVvckd2VWlzdFBBd0NnWUlLb1pJemowRUF3SXcKRlRFVE1CRUdBMVVFQXd3S2FXNTBaWEp1WVd3dFkyRXdIaGNOTWpReE1UQTBPREV5TlRVM1doY05NalV4TVRBMApPREV5TlRVM1dqQlZNUk13RVFZRFZRUUREQXByYm5SbGNtNWhiQzFqWVRGaE1CY0dCeXFHU000OUFnRUdDQ3FHClNBTUVCVDBEQVFBREE0R05BRENBRGlrVzN6bHRpOGtQNFdDTU4wSk8xU1RhKzV6V0t5bFp5N3k1N25sMEg4TmsKSzZqcmZ4dDhkdk01Z2JNYVlZSFdScEp3V3VyU3J5R2JjR2hHOGpGQmZJclhvMDB3S3pBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUSNEQFFVcFlCeS9sUWF5K0V6Y0hCczh6aVhyCkN2bXRrV1ZGTURBS0JnZ3Foa2pPUFFRREFnTkpBREJHQWlFQXoxd0s4Z3B1V3NkaDlaZUp3UWZ2VUR5MndhNVMKTnB4ZFlSZm0yRldxQlh3Q0lRQ1hRMW5UaGpuWFlvTWp6bDVqSldnQnB0RFpnMWtwUWQ4N25hYkVpSUZlR0E9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: service-b-tls-secret
+  namespace: traefik-crd-poc
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJpRENDQVRXZ0F3SUJBZ0lVTk1tKzV1cWRoRzN5V3l3Q3Nvd01CQUdFQWpBQU1BMEdDU3FHU0liM0RRRUIKQ3dVQU1CVXhFekFSQmdOVkJBTU1DbU52YlhCaGJua3VZMjl0TUJrZ0Z3MHlOREExTURFeE1qSTFNREphRncweQpOVEx1U0t3TXlhY052S0E3QkhzSmZkVWl3c3FzMmp1V2h5ekVnNEZ0NlluSmsxK3hKanpxK0JqNUNaekl6RWdBQjBpCk1JSUJpRENDQVRXZ0F3SUJBZ0lVTk1tKzV1cWRoRzN5V3l3Q3Nvd01CQUdFQWpBQU1BMEdDU3FHU0liM0RRRUIKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1JR0NB金のT0NnQVFjRFFnQUVreC9kZnQ2WndFNHQyOXNDdjdHeVA1ZTlyWlE2a3dNeWFjTnZLQTdCSHNKZmRVaXdzcXMyanVXRXl6RWc0RnQ2WW5KawoxK3hKanpxK0JqNUNaekl6RWdBQjBpMkJjNldldkdEQXFmSG9YcmY4b1J4bXNnMEpIeWd5UFlEbUFlQ3ZqRFFXNA==
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: service-b-tls-secret
+  namespace: traefik-gateway-poc
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJpRENDQVRXZ0F3SUJBZ0lVTk1tKzV1cWRoRzN5V3l3Q3Nvd01CQUdFQWpBQU1BMEdDU3FHU0liM0RRRUIKQ3dVQU1CVXhFekFSQmdOVkJBTU1DbU52YlhCaGJua3VZMjl0TUJrZ0Z3MHlOREExTURFeE1qSTFNREphRncweQpOVEx1U0t3TXlhY052S0E3QkhzSmZkVWl3c3FzMmp1V2h5ekVnNEZ0NlluSmsxK3hKanpxK0JqNUNaekl6RWdBQjBpCk1JSUJpRENDQVRXZ0F3SUJBZ0lVTk1tKzV1cWRoRzN5V3l3Q3Nvd01CQUdFQWpBQU1BMEdDU3FHU0liM0RRRUIKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1JR0NB金のT0NnQVFjRFFnQUVreC9kZnQ2WndFNHQyOXNDdjdHeVA1ZTlyWlE2a3dNeWFjTnZLQTdCSHNKZmRVaXdzcXMyanVXRXl6RWc0RnQ2WW5KawoxK3hKanpxK0JqNUNaekl6RWdBQjBpMkJjNldldkdEQXFmSG9YcmY4b1J4bXNnMEpIeWd5UFlEbUFlQ3ZqRFFXNA==
+---
+# ------------------------------------------------------------------------------
+# Mock Microservice: Service-B (Provider API) in traefik-crd-poc
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-b
+  namespace: traefik-crd-poc
+  labels:
+    app: service-b
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: service-b
+  template:
+    metadata:
+      labels:
+        app: service-b
+        tier: backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: echo-server
+          image: registry.k8s.io/e2e-test-images/agnhost:2.45
+          args: ["netexec", "--http-port=8080", "--udp-port=8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 1000680000
+            runAsGroup: 1000680000
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-b
+  namespace: traefik-crd-poc
+  labels:
+    app: service-b
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: https-internal
+      port: 8443
+      targetPort: 8080
+  selector:
+    app: service-b
+---
+# ------------------------------------------------------------------------------
+# Mock Microservice: Service-B (Provider API) in traefik-gateway-poc
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-b
+  namespace: traefik-gateway-poc
+  labels:
+    app: service-b
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: service-b
+  template:
+    metadata:
+      labels:
+        app: service-b
+        tier: backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: echo-server
+          image: registry.k8s.io/e2e-test-images/agnhost:2.45
+          args: ["netexec", "--http-port=8080", "--udp-port=8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 1000680000
+            runAsGroup: 1000680000
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-b
+  namespace: traefik-gateway-poc
+  labels:
+    app: service-b
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: https-internal
+      port: 8443
+      targetPort: 8080
+  selector:
+    app: service-b
+---
+# ------------------------------------------------------------------------------
+# Mock Microservice: Service-A (Consumer Client) in traefik-crd-poc
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-a
+  namespace: traefik-crd-poc
+  labels:
+    app: service-a
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-a
+  template:
+    metadata:
+      labels:
+        app: service-a
+        tier: frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: test-client
+          image: registry.k8s.io/e2e-test-images/agnhost:2.45
+          command: ["sleep", "infinity"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 1000680000
+            runAsGroup: 1000680000
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+# ------------------------------------------------------------------------------
+# Mock Microservice: Service-A (Consumer Client) in traefik-gateway-poc
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-a
+  namespace: traefik-gateway-poc
+  labels:
+    app: service-a
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-a
+  template:
+    metadata:
+      labels:
+        app: service-a
+        tier: frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: test-client
+          image: registry.k8s.io/e2e-test-images/agnhost:2.45
+          command: ["sleep", "infinity"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 1000680000
+            runAsGroup: 1000680000
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

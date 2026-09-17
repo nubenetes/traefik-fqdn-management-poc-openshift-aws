@@ -1,0 +1,142 @@
+# ==============================================================================
+# Enterprise Red Hat OpenShift (v4.14+) / AWS (ROSA) Deployment
+# Repository: https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+# Context: ://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+#
+# File: manifests/solution-a-traefik-crds/02-middleware-security.yaml
+# Solution: Solution A (Traefik CRD Stack - Traefik Proxy v3.0+)
+# Description:
+#   Companion Traefik v3.0+ Middleware resources enforcing comprehensive edge
+#   and inter-service security:
+#     1. Security Headers (Strict HSTS, Frame Options, Sniff Prevention, Content Security Policy)
+#     2. CORS Controls explicitly configured for enterprise domains (*.company.com)
+#     3. Request Header Manipulation (standardizing X-Forwarded-Host, X-Real-IP)
+#     4. IPAllowList middleware restricting East-West validation to trusted OpenShift SDN/VPC CIDRs
+#     5. HTTP to HTTPS scheme redirect
+# ==============================================================================
+
+---
+# ------------------------------------------------------------------------------
+# 1. Edge Security Headers & CORS Middleware
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: middleware-security-headers
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-a-crd
+spec:
+  headers:
+    # HTTP Strict Transport Security (HSTS)
+    # Preload-compliant 1-year max-age header with subdomains inclusion
+    sslRedirect: true
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    stsPreload: true
+    forceSTSHeader: true
+
+    # Anti-Clickjacking & MIME-sniffing Protection
+    frameDeny: true
+    contentTypeNosniff: true
+    browserXssFilter: true
+
+    # Content Security Policy (CSP)
+    contentSecurityPolicy: "default-src 'self' https://company.com https://api.company.com; frame-ancestors 'none'; object-src 'none';"
+
+    # Referrer Policy
+    referrerPolicy: "strict-origin-when-cross-origin"
+
+    # Cross-Origin Resource Sharing (CORS) Controls:
+    # Explicitly whitelist corporate origins to prevent unauthorized web-based API access
+    accessControlAllowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - PATCH
+      - OPTIONS
+    accessControlAllowHeaders:
+      - Authorization
+      - Content-Type
+      - X-Requested-With
+      - X-Correlation-ID
+      - X-Forwarded-Host
+    accessControlAllowOriginList:
+      - "https://company.com"
+      - "https://api.company.com"
+    accessControlAllowCredentials: true
+    accessControlMaxAge: 3600
+    addVaryHeader: true
+
+---
+# ------------------------------------------------------------------------------
+# 2. Host Header Manipulation Middleware (X-Forwarded-Host & Identity Tracking)
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: middleware-forwarded-host-mutation
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-a-crd
+spec:
+  headers:
+    customRequestHeaders:
+      # Explicitly normalize X-Forwarded-Host and inject platform routing metadata
+      X-Forwarded-Proto: "https"
+      X-Enterprise-Route-Type: "Solution-A-Traefik-CRD"
+      X-Cluster-Platform: "Red-Hat-OpenShift-AWS-v4.14"
+      X-Gateway-Organization: "nubenetes"
+    customResponseHeaders:
+      X-Served-By-Proxy: "Traefik-v3-CRD-IngressRoute"
+
+---
+# ------------------------------------------------------------------------------
+# 3. IPAllowList Middleware (East-West Network Perimeter Validation)
+# Restricts internal microservice access strictly to OpenShift OVN-Kubernetes
+# pod network CIDRs and AWS VPC internal subnets.
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: middleware-internal-east-west-allowlist
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-a-crd
+spec:
+  ipAllowList:
+    # OpenShift default cluster networks and AWS VPC CIDR blocks:
+    sourceRange:
+      - "10.128.0.0/14"   # OpenShift OVN-Kubernetes Cluster Pod Network
+      - "172.30.0.0/16"   # OpenShift Cluster Service Network
+      - "10.0.0.0/16"     # AWS VPC Subnet CIDR (ROSA worker node plane)
+      - "127.0.0.1/32"    # Loopback / health check probes
+    ipStrategy:
+      # Preserves client IP when traversing AWS NLB with PROXY protocol v2
+      depth: 1
+
+---
+# ------------------------------------------------------------------------------
+# 4. HTTP -> HTTPS Scheme Redirection Middleware
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: middleware-redirect-scheme-https
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-a-crd
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+    port: "443"

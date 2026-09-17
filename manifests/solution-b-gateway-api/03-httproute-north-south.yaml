@@ -1,0 +1,153 @@
+# ==============================================================================
+# Enterprise Red Hat OpenShift (v4.14+) / AWS (ROSA) Deployment
+# Repository: https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+# Context: ://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+#
+# File: manifests/solution-b-gateway-api/03-httproute-north-south.yaml
+# Solution: Solution B (Kubernetes Gateway API Stack - Traefik Proxy v3.0+)
+# Description:
+#   Declarative HTTPRoute capturing corporate edge FQDNs ('company.com', 'api.company.com').
+#   Demonstrates modern Gateway API native filters (RequestHeaderModifier,
+#   ResponseHeaderModifier, RequestRedirect, URLRewrite) that replace proprietary
+#   Traefik Middleware CRDs with portable, standardized Kubernetes specifications.
+# ==============================================================================
+
+---
+# ------------------------------------------------------------------------------
+# 1. Edge HTTP -> HTTPS Redirect Route
+# Attached to 'http-edge' listener on aws-edge-gateway
+# ------------------------------------------------------------------------------
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httproute-north-south-redirect
+  namespace: traefik-gateway-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    routing.gateway.networking.k8s.io/tier: edge-redirect
+    solution: solution-b-gateway-api
+spec:
+  parentRefs:
+    - name: aws-edge-gateway
+      namespace: traefik-system
+      sectionName: http-edge
+  hostnames:
+    - "company.com"
+    - "api.company.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        # Native Gateway API RequestRedirect replaces Traefik's RedirectScheme middleware
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+            port: 443
+
+---
+# ------------------------------------------------------------------------------
+# 2. Edge HTTPS Application & API Route
+# Attached to 'https-edge' listener on aws-edge-gateway
+# ------------------------------------------------------------------------------
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httproute-north-south-https
+  namespace: traefik-gateway-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    routing.gateway.networking.k8s.io/tier: edge-north-south
+    solution: solution-b-gateway-api
+spec:
+  # Binds specifically to the secure HTTPS listener defined on the infrastructure Gateway
+  parentRefs:
+    - name: aws-edge-gateway
+      namespace: traefik-system
+      sectionName: https-edge
+  hostnames:
+    - "company.com"
+    - "api.company.com"
+  rules:
+    # --------------------------------------------------------------------------
+    # Rule 1: API Endpoint with Header Mutation & Strict Security Headers
+    # --------------------------------------------------------------------------
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v1
+      filters:
+        # Request Header Manipulation Filter:
+        # Replaces custom Traefik middleware headers with standard Gateway API filters
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: X-Forwarded-Host
+                value: "api.company.com"
+              - name: X-Gateway-Engine
+                value: "Traefik-v3-Gateway-API"
+              - name: X-Infrastructure-Provider
+                value: "AWS-ROSA-OpenShift-4.14"
+              - name: X-Solution-Tier
+                value: "Solution-B-Gateway-API"
+            remove:
+              - "X-Powered-By"
+              - "Server"
+
+        # Response Header Security Injection Filter:
+        # Injects HSTS, CSP, and CORS directly at the edge route definition
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains; preload"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: X-Frame-Options
+                value: "DENY"
+              - name: Content-Security-Policy
+                value: "default-src 'self' https://company.com https://api.company.com;"
+              - name: Access-Control-Allow-Origin
+                value: "https://company.com"
+              - name: Access-Control-Allow-Methods
+                value: "GET, POST, PUT, DELETE, OPTIONS"
+              - name: Access-Control-Allow-Headers
+                value: "Authorization, Content-Type, X-Forwarded-Host, X-Correlation-ID"
+
+      backendRefs:
+        - name: service-b
+          namespace: traefik-gateway-poc
+          port: 8080
+          weight: 100
+
+    # --------------------------------------------------------------------------
+    # Rule 2: Root Domain Web Frontend Route with Path URL Rewriting
+    # --------------------------------------------------------------------------
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /portal
+      filters:
+        # Standardized URL Rewrite Filter:
+        # Rewrites '/portal' prefix to '/' when dispatching to backend
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains; preload"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+      backendRefs:
+        - name: service-b
+          namespace: traefik-gateway-poc
+          port: 8080
+          weight: 100

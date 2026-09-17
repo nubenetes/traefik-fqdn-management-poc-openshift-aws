@@ -1,0 +1,144 @@
+# ==============================================================================
+# Enterprise Red Hat OpenShift (v4.14+) / AWS (ROSA) Deployment
+# Repository: https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+# Context: ://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+#
+# File: manifests/common/00-namespaces-rbac-scc.yaml
+# Description:
+#   Declares isolated namespaces, ServiceAccount, ClusterRole, and ClusterRoleBinding
+#   for Traefik Proxy v3.0+. Includes explicit OpenShift Security Context Constraints
+#   (SCC) configurations ensuring compliance with OpenShift 4.14+ 'restricted-v2'
+#   and 'nonroot-v2' standards.
+# ==============================================================================
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: traefik-system
+  labels:
+    app.kubernetes.io/part-of: traefik-platform
+    network.openshift.io/policy-group: ingress
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: traefik-crd-poc
+  labels:
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-a-crd
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: traefik-gateway-poc
+  labels:
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-b-gateway-api
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# Dedicated ServiceAccount for Traefik Proxy Ingress Controller
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: traefik-ingress-controller
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/instance: traefik-enterprise
+---
+# ClusterRole providing least-privilege access to both Traefik CRDs and Kubernetes Gateway API resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: traefik-gateway-crd-controller
+  labels:
+    app.kubernetes.io/name: traefik
+rules:
+  # Core Kubernetes Resources
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "ingressclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses/status"]
+    verbs: ["update"]
+
+  # Solution A: Traefik v3.0+ Custom Resource Definitions (CRDs)
+  - apiGroups: ["traefik.io"]
+    resources:
+      - ingressroutes
+      - ingressroutetcps
+      - ingressrouteudps
+      - middlewares
+      - middlewaretcps
+      - tlsoptions
+      - tlsstores
+      - serverstransports
+      - serverstransporttcps
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["traefik.io"]
+    resources:
+      - ingressroutes/status
+      - ingressroutetcps/status
+      - ingressrouteudps/status
+    verbs: ["update"]
+
+  # Solution B: Kubernetes Gateway API Specification (v1 & v1alpha2/v1beta1)
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources:
+      - gatewayclasses
+      - gateways
+      - httproutes
+      - grpcroutes
+      - tlsroutes
+      - tcproutes
+      - udproutes
+      - backendtlspolicies
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources:
+      - gatewayclasses/status
+      - gateways/status
+      - httproutes/status
+      - grpcroutes/status
+      - tlsroutes/status
+      - tcproutes/status
+      - udproutes/status
+      - backendtlspolicies/status
+    verbs: ["update"]
+
+  # OpenShift Specific RBAC: Route inspection & security context verification
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["security.openshift.io"]
+    resources: ["securitycontextconstraints"]
+    resourceNames: ["nonroot-v2", "restricted-v2"]
+    verbs: ["use"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: traefik-gateway-crd-controller-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: traefik-gateway-crd-controller
+subjects:
+  - kind: ServiceAccount
+    name: traefik-ingress-controller
+    namespace: traefik-system

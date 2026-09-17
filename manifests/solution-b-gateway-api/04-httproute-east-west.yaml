@@ -1,0 +1,103 @@
+# ==============================================================================
+# Enterprise Red Hat OpenShift (v4.14+) / AWS (ROSA) Deployment
+# Repository: https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+# Context: ://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+#
+# File: manifests/solution-b-gateway-api/04-httproute-east-west.yaml
+# Solution: Solution B (Kubernetes Gateway API Stack - Traefik Proxy v3.0+)
+# Description:
+#   Internal East-West microservice routing using standard Gateway API resources.
+#   Implements strict mTLS and backend cryptographic verification via
+#   'BackendTLSPolicy' (gateway.networking.k8s.io/v1alpha3) and HTTPRoute filters.
+#   Enforces cluster FQDN routing for 'service-b.apps.cluster.local', client identity
+#   propagation, and prevents cross-namespace domain impersonation.
+# ==============================================================================
+
+---
+# ------------------------------------------------------------------------------
+# 1. BackendTLSPolicy: Zero-Trust Backend Cryptographic Verification
+# Standard Gateway API policy configuring Traefik to enforce strict TLS/mTLS
+# when connecting to backend service Pods, validating the server certificate SAN
+# against the internal cluster FQDN.
+# ------------------------------------------------------------------------------
+apiVersion: gateway.networking.k8s.io/v1alpha3
+kind: BackendTLSPolicy
+metadata:
+  name: backend-tls-policy-service-b
+  namespace: traefik-gateway-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-b-gateway-api
+    security.gateway.networking.k8s.io/tier: east-west-mtls
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: service-b
+  validation:
+    # Internal Root CA certificate Secret containing the corporate trust anchor
+    caCertificateRefs:
+      - group: ""
+        kind: Secret
+        name: internal-ca-secret
+    # Strictly validates the SAN (Subject Alternative Name) on the upstream certificate
+    hostname: "service-b.apps.cluster.local"
+
+---
+# ------------------------------------------------------------------------------
+# 2. East-West HTTPRoute: Internal Microservice Interconnect
+# ------------------------------------------------------------------------------
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httproute-east-west-service-b
+  namespace: traefik-gateway-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    routing.gateway.networking.k8s.io/tier: internal-east-west
+    solution: solution-b-gateway-api
+spec:
+  # Attaches to the internal mTLS listener on the shared AWS Gateway
+  parentRefs:
+    - name: aws-edge-gateway
+      namespace: traefik-system
+      sectionName: https-internal-east-west
+  hostnames:
+    - "service-b.apps.cluster.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v1/internal
+          headers:
+            - name: X-Client-Tenant
+              value: "internal-finance"
+      filters:
+        # Request Header Injection Filter for Zero-Trust Auditing
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: X-Internal-Routing-Standard
+                value: "Kubernetes-Gateway-API-v1"
+              - name: X-Authenticated-Issuer
+                value: "corporate-internal-ca"
+              - name: X-Forwarded-Cluster-FQDN
+                value: "service-b.apps.cluster.local"
+            add:
+              - name: X-Transit-Timestamp
+                value: "epoch-micros"
+
+        # Traefik Native Filter Extension (demonstrating portable extension hooks)
+        - type: ExtensionRef
+          extensionRef:
+            group: traefik.io
+            kind: Middleware
+            name: middleware-internal-east-west-allowlist
+
+      backendRefs:
+        - name: service-b
+          namespace: traefik-gateway-poc
+          port: 8443
+          weight: 100

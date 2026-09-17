@@ -1,0 +1,107 @@
+# ==============================================================================
+# Enterprise Red Hat OpenShift (v4.14+) / AWS (ROSA) Deployment
+# Repository: https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+# Context: ://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+#
+# File: manifests/solution-b-gateway-api/02-gateway-aws.yaml
+# Solution: Solution B (Kubernetes Gateway API Stack - Traefik Proxy v3.0+)
+# Description:
+#   Infrastructure-level Gateway resource provisioned in 'traefik-system'.
+#   Contains production AWS Load Balancer Controller annotations for automated
+#   AWS Network Load Balancer (NLB) provisioning with PROXY protocol v2 support,
+#   and ExternalDNS annotations for automatic AWS Route 53 A/Alias record sync.
+#   Configures multi-tenant listeners with strict cross-namespace route delegation.
+# ==============================================================================
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: aws-edge-gateway
+  namespace: traefik-system
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-b-gateway-api
+    infrastructure.aws.nubenetes.io/tier: public-edge-nlb
+  annotations:
+    # --------------------------------------------------------------------------
+    # AWS Load Balancer Controller (NLB L4 Provisioning) Annotations:
+    # --------------------------------------------------------------------------
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    # Enables PROXY protocol v2 on AWS NLB to pass real client IP to Traefik
+    service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: "*"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "http"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "9000"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/ping"
+    service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: "Environment=production,PoC=Traefik-GatewayAPI,Owner=PlatformEngineering,Repo=traefik-fqdn-management-poc-openshift-aws"
+
+    # --------------------------------------------------------------------------
+    # AWS Route 53 DNS Synchronization via ExternalDNS:
+    # --------------------------------------------------------------------------
+    external-dns.alpha.kubernetes.io/hostname: "company.com,api.company.com"
+    external-dns.alpha.kubernetes.io/ttl: "60"
+    external-dns.alpha.kubernetes.io/aws-route53-record-type: "A"
+spec:
+  # References the cluster GatewayClass declared in 01-gateway-class.yaml
+  gatewayClassName: traefik-gateway-class
+
+  # Explicit Listener declarations segregating ports, protocols, and multi-tenant delegation
+  listeners:
+    # --------------------------------------------------------------------------
+    # 1. HTTP Edge Listener (Port 80)
+    # --------------------------------------------------------------------------
+    - name: http-edge
+      protocol: HTTP
+      port: 80
+      hostname: "*.company.com"
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # --------------------------------------------------------------------------
+    # 2. HTTPS Edge Listener (Port 443) - Terminates External TLS
+    # --------------------------------------------------------------------------
+    - name: https-edge
+      protocol: HTTPS
+      port: 443
+      hostname: "*.company.com"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: production-tls-secret
+            namespace: traefik-gateway-poc
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              app.kubernetes.io/part-of: traefik-poc
+
+    # --------------------------------------------------------------------------
+    # 3. HTTPS East-West Internal Mesh Listener (Port 8443)
+    # Restricted to internal cluster communication (*.apps.cluster.local)
+    # --------------------------------------------------------------------------
+    - name: https-internal-east-west
+      protocol: HTTPS
+      port: 8443
+      hostname: "*.apps.cluster.local"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: service-b-tls-secret
+            namespace: traefik-gateway-poc
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              solution: solution-b-gateway-api

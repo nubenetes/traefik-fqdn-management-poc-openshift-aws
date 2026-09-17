@@ -1,0 +1,27 @@
+# ==============================================================================
+# Enterprise Red Hat OpenShift (v4.14+) / AWS (ROSA) Deployment
+# Repository: https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+# Context: ://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+#
+# File: manifests/solution-b-gateway-api/01-gateway-class.yaml
+# Solution: Solution B (Kubernetes Gateway API Stack - Traefik Proxy v3.0+)
+# Description:
+#   Defines the cluster-scoped GatewayClass resource according to the official
+#   Kubernetes Gateway API specification (gateway.networking.k8s.io/v1).
+#   Points to Traefik v3.0+'s native Gateway API controller implementation.
+# ==============================================================================
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: traefik-gateway-class
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-b-gateway-api
+    gateway.networking.k8s.io/controller: traefik-gateway-controller
+spec:
+  # Identifies the Traefik v3.0+ Gateway API controller
+  controllerName: "traefik.io/gateway-controller"
+  description: "Standardized OpenShift Enterprise GatewayClass managed by Traefik v3.0+ on AWS"

@@ -1,0 +1,140 @@
+# ==============================================================================
+# Enterprise Red Hat OpenShift (v4.14+) / AWS (ROSA) Deployment
+# Repository: https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+# Context: ://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+#
+# File: manifests/solution-a-traefik-crds/03-ingressroute-east-west.yaml
+# Solution: Solution A (Traefik CRD Stack - Traefik Proxy v3.0+)
+# Description:
+#   Zero-Trust East-West internal routing architecture. Implements strict Mutual
+#   TLS (mTLS) between internal microservices using Traefik v3.0+ 'TLSOption' and
+#   'ServersTransport' CRDs. Enforces internal cluster FQDN validation
+#   ('service-b.apps.cluster.local'), client certificate verification against an
+#   internal corporate CA bundle, and IP boundary checks to stop cross-namespace spoofing.
+# ==============================================================================
+
+---
+# ------------------------------------------------------------------------------
+# 1. Traefik TLSOption: Strict Mutual TLS (mTLS) Cryptographic Profile
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: strict-mtls-option
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-a-crd
+    security.traefik.io/profile: zero-trust-east-west
+spec:
+  # Enforce TLS 1.3 as the absolute minimum version for East-West traffic
+  minVersion: VersionTLS13
+  # Cipher suites compliant with NIST SP 800-52r2 and Red Hat OpenShift Crypto Policy
+  cipherSuites:
+    - TLS_AES_128_GCM_SHA256
+    - TLS_AES_256_GCM_SHA384
+    - TLS_CHACHA20_POLY1305_SHA256
+  # Strict Client Certificate Authentication:
+  # Traefik terminates client connections only if the client presents a valid X.509
+  # certificate signed by the internal enterprise Root CA.
+  clientAuth:
+    secretNames:
+      - internal-ca-secret
+    clientAuthType: RequireAndVerifyClientCert
+
+---
+# ------------------------------------------------------------------------------
+# 2. General Edge TLS Profile (Fallback for North-South edge termination)
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: strict-tls-options
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-a-crd
+spec:
+  minVersion: VersionTLS12
+  cipherSuites:
+    - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+    - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    - TLS_AES_128_GCM_SHA256
+    - TLS_AES_256_GCM_SHA384
+  sniStrict: true
+
+---
+# ------------------------------------------------------------------------------
+# 3. Traefik ServersTransport: Upstream Backend mTLS & CA Pinning
+# Configures Traefik to present a client certificate to upstream backend pods
+# and verify backend server TLS identities, ensuring end-to-end encryption.
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: internal-east-west-transport
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    solution: solution-a-crd
+spec:
+  serverName: "service-b.apps.cluster.local"
+  rootCAsSecrets:
+    - internal-ca-secret
+  certificatesSecrets:
+    - service-b-tls-secret
+  insecureSkipVerify: false
+  maxIdleConnsPerHost: 64
+  forwardingTimeouts:
+    dialTimeout: 3s
+    responseHeaderTimeout: 10s
+    idleConnTimeout: 90s
+
+---
+# ------------------------------------------------------------------------------
+# 4. Internal IngressRoute: East-West Microservice Interconnect
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ingressroute-east-west-service-b
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    routing.traefik.io/tier: internal-east-west
+    solution: solution-a-crd
+  annotations:
+    description: "Secure East-West routing for Service-A calling Service-B with mTLS"
+    traffic.openshift.io/route-tier: "internal-cluster-mesh"
+spec:
+  # Internal mesh entrypoint (isolated from public AWS NLB listener)
+  entryPoints:
+    - websecure
+  routes:
+    # Strict FQDN matching: requires exact internal cluster FQDN in Host header & SNI
+    - match: Host(`service-b.apps.cluster.local`) && PathPrefix(`/api/v1/internal`)
+      kind: Rule
+      middlewares:
+        # Enforces CIDR-level perimeter checks against non-cluster pods
+        - name: middleware-internal-east-west-allowlist
+          namespace: traefik-crd-poc
+        - name: middleware-security-headers
+          namespace: traefik-crd-poc
+      services:
+        - name: service-b
+          port: 8443
+          scheme: https
+          serversTransport: internal-east-west-transport
+          weight: 100
+  # Attach the strict mTLS validation profile to the listener route
+  tls:
+    secretName: service-b-tls-secret
+    options:
+      name: strict-mtls-option
+      namespace: traefik-crd-poc

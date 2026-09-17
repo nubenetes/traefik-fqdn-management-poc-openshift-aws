@@ -1,0 +1,118 @@
+# ==============================================================================
+# Enterprise Red Hat OpenShift (v4.14+) / AWS (ROSA) Deployment
+# Repository: https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+# Context: ://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws
+#
+# File: manifests/solution-a-traefik-crds/01-ingressroute-north-south.yaml
+# Solution: Solution A (Traefik CRD Stack - Traefik Proxy v3.0+)
+# Description:
+#   Production-grade IngressRoute capturing external edge traffic for corporate
+#   FQDNs ('company.com', 'api.company.com'). Integrates AWS Route 53 automation via
+#   ExternalDNS annotations, enforces HTTP->HTTPS redirection, applies strict TLS
+#   termination with custom ciphers, and injects host headers (X-Forwarded-Host).
+# ==============================================================================
+
+---
+# ------------------------------------------------------------------------------
+# HTTP IngressRoute (Port 8000 / Entrypoint 'web')
+# Handles edge HTTP traffic and enforces an unconditional 301 redirect to HTTPS.
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ingressroute-north-south-http
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    routing.traefik.io/tier: edge-north-south
+    solution: solution-a-crd
+  annotations:
+    # AWS Route 53 DNS Synchronization via ExternalDNS:
+    # ExternalDNS controller running in OpenShift monitors this IngressRoute and
+    # provisions dual Alias/A-records in the designated AWS Route 53 Hosted Zone.
+    external-dns.alpha.kubernetes.io/hostname: "company.com,api.company.com"
+    external-dns.alpha.kubernetes.io/ttl: "60"
+    external-dns.alpha.kubernetes.io/aws-route53-record-type: "A"
+    # OpenShift Router Bypass Marker:
+    router.openshift.io/bypass: "true"
+spec:
+  entryPoints:
+    - web
+  routes:
+    # Matches incoming HTTP requests targeting corporate enterprise domains
+    - match: Host(`company.com`) || Host(`api.company.com`)
+      kind: Rule
+      middlewares:
+        # Enforces automated permanent HTTP-to-HTTPS redirect
+        - name: middleware-redirect-scheme-https
+          namespace: traefik-crd-poc
+      services:
+        # Traefik requires a dummy/valid backend service even for redirect rules
+        - name: service-b
+          port: 8080
+
+---
+# ------------------------------------------------------------------------------
+# HTTPS IngressRoute (Port 8443 / Entrypoint 'websecure')
+# Handles secure TLS 1.3 edge traffic, terminates TLS with organizational certs,
+# manipulates X-Forwarded-Host headers, and injects enterprise security policies.
+# ------------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ingressroute-north-south-https
+  namespace: traefik-crd-poc
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: traefik-poc
+    routing.traefik.io/tier: edge-north-south
+    solution: solution-a-crd
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "company.com,api.company.com"
+    external-dns.alpha.kubernetes.io/ttl: "60"
+    external-dns.alpha.kubernetes.io/aws-route53-record-type: "A"
+    # Target AWS NLB identification tag for audit and platform telemetry
+    infrastructure.aws.nubenetes.io/ingress-tier: "public-edge-nlb"
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    # 1. API Route: Captures 'api.company.com' traffic and routes to upstream microservice
+    - match: Host(`api.company.com`) && PathPrefix(`/api`)
+      kind: Rule
+      middlewares:
+        # Applies HSTS, CSP, and CORS HTTP headers
+        - name: middleware-security-headers
+          namespace: traefik-crd-poc
+        # Mutates and standardizes X-Forwarded-Host and origin tracking headers
+        - name: middleware-forwarded-host-mutation
+          namespace: traefik-crd-poc
+      services:
+        - name: service-b
+          port: 8080
+          weight: 100
+          strategy: RoundRobin
+
+    # 2. Portal Route: Captures root domain 'company.com'
+    - match: Host(`company.com`)
+      kind: Rule
+      middlewares:
+        - name: middleware-security-headers
+          namespace: traefik-crd-poc
+        - name: middleware-forwarded-host-mutation
+          namespace: traefik-crd-poc
+      services:
+        - name: service-b
+          port: 8080
+          weight: 100
+          strategy: RoundRobin
+
+  # TLS Termination Configuration:
+  # Uses organizational TLS certificate secret stored within the namespace.
+  # Adheres to OpenShift 4.14 cryptographic standards (TLS 1.2+ minimum, modern ciphers).
+  tls:
+    secretName: production-tls-secret
+    options:
+      name: strict-tls-options
+      namespace: traefik-crd-poc
