@@ -19,7 +19,6 @@
   <img src="https://img.shields.io/badge/Protocol-HTTP%2F3%20%26%20gRPC-00ADD8?style=flat-square&logo=go&logoColor=white" alt="HTTP3 gRPC"/>
   <img src="https://img.shields.io/badge/Traffic-North--South%20%26%20East--West-38A169?style=flat-square&logo=diagram-next&logoColor=white" alt="Traffic Routing"/>
   <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square" alt="License"/>
-  <img src="https://img.shields.io/badge/Context-://github.com/nubenetes-8A2BE2?style=flat-square&logo=git&logoColor=white" alt="Repo Context"/>
 </p>
 
 ---
