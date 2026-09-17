@@ -88,21 +88,21 @@ The OpenShift router is strictly a **North-South edge ingress proxy**. Native Ro
 To overcome these constraints on OpenShift 4.14+ on AWS, we evaluate and implement the two leading paradigms in the cloud-native ecosystem:
 
 ```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 340, "nodePadding": 24}}}%%
+%%{init: {"flowchart": {"wrappingWidth": 440, "nodePadding": 30, "diagramPadding": 32}}}%%
 flowchart TD
-    Start(["<b>Ingress Architecture Decision Flow</b><br/>Red Hat OpenShift 4.14+ on AWS"])
+    Start(["&nbsp;&nbsp;&nbsp;<b>Ingress Architecture Decision Flow</b>&nbsp;&nbsp;&nbsp;<br/>&nbsp;&nbsp;&nbsp;Red Hat OpenShift 4.14+ on AWS&nbsp;&nbsp;&nbsp;"])
 
-    D1("<b>Step 1: OpenShift Native Ingress Fit</b><br/>Do standard OpenShift Routes satisfy all basic<br/>ingress, wildcard FQDN & security needs?")
+    D1("<b>Step 1: OpenShift Native Ingress Fit</b><br/><br/>Do standard OpenShift Routes satisfy all basic<br/>ingress, wildcard FQDN & security needs?<br/>&nbsp;")
 
-    NativeRoute["<b>Use Native OpenShift Routes</b><br/>• Out-of-the-box Ingress Operator management<br/>• Zero additional controller overhead<br/>• Default *.apps cluster wildcard domain"]
+    NativeRoute["<b>Use Native OpenShift Routes</b><br/><br/>• Out-of-the-box Ingress Operator management<br/>• Zero additional controller overhead<br/>• Default *.apps cluster wildcard domain<br/>&nbsp;"]
 
-    D2("<b>Step 2: Multi-Cloud Parity & Portability</b><br/>Is cross-platform manifest portability across<br/>AWS EKS, GKE, or On-Prem required?")
+    D2("<b>Step 2: Multi-Cloud Parity & Portability</b><br/><br/>Is cross-platform manifest portability across<br/>AWS EKS, GKE, or On-Prem required?<br/>&nbsp;")
 
-    D3("<b>Step 3: Enterprise Multi-Tenancy & RBAC</b><br/>Is strict Platform Admin vs. App Developer<br/>tri-persona separation mandatory?")
+    D3("<b>Step 3: Enterprise Multi-Tenancy & RBAC</b><br/><br/>Is strict Platform Admin vs. App Developer<br/>tri-persona separation mandatory?<br/>&nbsp;")
 
-    SolB["<b>Solution B: Kubernetes Gateway API</b><br/>• CNCF de jure standard (v1.x specification)<br/>• Role-oriented Gateway vs. HTTPRoute boundaries<br/>• Complete zero vendor lock-in across clouds"]
+    SolB["<b>Solution B: Kubernetes Gateway API</b><br/><br/>• CNCF de jure standard (v1.x specification)<br/>• Role-oriented Gateway vs. HTTPRoute boundaries<br/>• Complete zero vendor lock-in across clouds<br/>&nbsp;"]
 
-    SolA["<b>Solution A: Traefik Proxy CRDs</b><br/>• Battle-tested IngressRoute & Middleware CRDs<br/>• High delivery velocity for unified engineering teams<br/>• Sub-second dynamic in-memory configuration reload"]
+    SolA["<b>Solution A: Traefik Proxy CRDs</b><br/><br/>• Battle-tested IngressRoute & Middleware CRDs<br/>• High delivery velocity for unified engineering teams<br/>• Sub-second dynamic in-memory configuration reload<br/>&nbsp;"]
 
     Start --> D1
     D1 -->|"Yes: Basic"| NativeRoute
@@ -237,39 +237,47 @@ provides an insightful real-world answer on **Google Kubernetes Engine (GKE)**. 
 ### 🧩 The 3 Security Postures Toggled via Feature Flags in `jenkins-2026`
 
 ```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 340, "nodePadding": 24}}}%%
+%%{init: {"flowchart": {"wrappingWidth": 400, "nodePadding": 28, "diagramPadding": 30}}}%%
 flowchart LR
-    subgraph Client["External Client"]
-      User(["Browser / API Consumer"])
+    subgraph Client["<b>External Client</b>"]
+      User(["<b>Browser / API Consumer</b><br/>External Web & API Traffic"])
     end
 
-    subgraph Edge["Perimeter: Gateway API"]
-      GW["GKE Gateway L7<br/>+ Identity-Aware Proxy (IAP)"]
+    subgraph Edge["<b>Perimeter: Ingress Gateway</b>"]
+      GW["<b>GKE Gateway API (L7)</b><br/>• Class: gke-l7-global-external-managed<br/>• TLS 1.3 termination with Wildcard Certs<br/>• Edge Authentication: Google IAP"]
     end
 
-    subgraph Flag0["Option 0: Default (none)"]
-      Pod0["Backend Pod<br/>(Plain HTTP in VPC + WireGuard)"]
+    subgraph Flag0["<b>Option 0: Default (none)</b>"]
+      Pod0["<b>Backend Pod (Plain HTTP)</b><br/>• Plain HTTP traffic inside private VPC<br/>• Transparent WireGuard eBPF encryption<br/>• Strict L3/L4 NetworkPolicies"]
     end
 
-    subgraph Flag1["Option 1: backend-tls (Flag On)"]
-      BTP["BackendTLSPolicy<br/>+ cert-manager CA"] --> Pod1["Backend Pod (HTTPS)<br/>Re-encryption & CA Validation"]
+    subgraph Flag1["<b>Option 1: backend-tls (Flag ON)</b>"]
+      direction TB
+      BTP["<b>BackendTLSPolicy (Gateway API)</b><br/>• Strict validation against internal CA<br/>• In-cluster trust ConfigMap ca.crt<br/>• Re-encrypted HTTPS on LB → Pod hop"]
+      Pod1["<b>Backend Pod (Secure HTTPS)</b><br/>• HTTPS server with pod-level certificate<br/>• Zero Envoy sidecars (0% compute tax)"]
+      BTP --> Pod1
     end
 
-    subgraph Flag2["Option 2: cloud-service-mesh (Flag On)"]
-      Proxy["istio-proxy sidecar<br/>(SPIFFE Identity)"] --> Pod2["Backend Pod (mTLS)<br/>L7 AuthorizationPolicy"]
+    subgraph Flag2["<b>Option 2: cloud-service-mesh (Flag ON)</b>"]
+      direction TB
+      Proxy["<b>istio-proxy Sidecar (CSM)</b><br/>• Cryptographic SPIFFE Workload Identity<br/>• Managed injection via GCP Cloud Fleet<br/>• Ingress LB port :8080 in PERMISSIVE mode"]
+      Pod2["<b>Backend Pod (Strict mTLS)</b><br/>• PeerAuthentication STRICT (Mutual TLS)<br/>• Granular L7 AuthorizationPolicy rules"]
+      Proxy --> Pod2
     end
 
-    User -->|"TLS 1.3"| GW
+    User ==>|"HTTPS (TLS 1.3)"| GW
     GW -.->|"Plain HTTP"| Pod0
     GW -.->|"HTTPS Re-encrypt"| BTP
     GW -.->|"mTLS SPIFFE"| Proxy
 
-    classDef edge fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px;
-    classDef opt fill:#f8fafc,stroke:#64748b,stroke-width:1px;
-    classDef secure fill:#f0fdf4,stroke:#16a34a,stroke-width:1.5px;
+    classDef edge fill:#eef2ff,stroke:#4f46e5,stroke-width:2px;
+    classDef opt fill:#f8fafc,stroke:#64748b,stroke-width:1.5px;
+    classDef secure fill:#f0fdf4,stroke:#16a34a,stroke-width:2px;
+    classDef user fill:#fefce8,stroke:#ca8a04,stroke-width:1.5px;
     class GW edge;
     class Pod0 opt;
     class BTP,Pod1,Proxy,Pod2 secure;
+    class User user;
 ```
 
 #### 1. Level 0: `none` (Default Baseline / Operational Simplicity)
