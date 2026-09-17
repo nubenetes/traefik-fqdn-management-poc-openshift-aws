@@ -57,6 +57,8 @@ The repository is tagged and indexed with the following domain taxonomy:
 .
 ├── README.md                                    # Architectural specification & deployment guide
 ├── COMPARATIVE_MATRIX.md                        # Deep-dive comparative matrix & OpenShift dilemma analysis
+├── LINKEDIN_NEWSLETTER_ES.md                    # Análisis e informe profundo para LinkedIn Newsletter (Español)
+├── LINKEDIN_NEWSLETTER_EN.md                    # Executive architecture & Ingress report for LinkedIn Newsletter (English)
 └── manifests/
     ├── common/
     │   ├── 00-namespaces-rbac-scc.yaml         # Namespaces, ServiceAccounts, RBAC, and SCC bindings
@@ -76,6 +78,8 @@ The repository is tagged and indexed with the following domain taxonomy:
 ### Direct File & Directory Navigation
 
 - 📄 [**COMPARATIVE_MATRIX.md**](./COMPARATIVE_MATRIX.md) — Comprehensive comparative matrix & OpenShift dilemma analysis
+- 📰 [**LINKEDIN_NEWSLETTER_ES.md**](./LINKEDIN_NEWSLETTER_ES.md) — Edición especial de análisis arquitectónico para LinkedIn Newsletter (Español)
+- 📰 [**LINKEDIN_NEWSLETTER_EN.md**](./LINKEDIN_NEWSLETTER_EN.md) — Executive Cloud-Native & Ingress Architecture Report for LinkedIn Newsletter (English)
 - 📁 [**manifests/common/**](./manifests/common/)
   - [`00-namespaces-rbac-scc.yaml`](./manifests/common/00-namespaces-rbac-scc.yaml) — OpenShift SCC & RBAC
   - [`01-mock-microservices.yaml`](./manifests/common/01-mock-microservices.yaml) — Workloads & TLS secrets

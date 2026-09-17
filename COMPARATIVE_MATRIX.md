@@ -4,6 +4,7 @@
 **Organization Context:** `://github.com/nubenetes`  
 **Target Environment:** Red Hat OpenShift Container Platform v4.14+ (ROSA / OCP on AWS)  
 **Author:** Principal Cloud-Native Solutions Architect & Platform Engineering Lead  
+**Executive Editions:** 📰 [LinkedIn Newsletter (Español)](./LINKEDIN_NEWSLETTER_ES.md) | 📰 [LinkedIn Newsletter (English)](./LINKEDIN_NEWSLETTER_EN.md)  
 
 ---
 
