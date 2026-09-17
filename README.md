@@ -1,10 +1,26 @@
 # Enterprise Traefik Proxy Ingress & FQDN Architecture on Red Hat OpenShift (AWS)
 
-[![Target Platform: OpenShift 4.14+](https://img.shields.io/badge/OpenShift-v4.14%2B-red.svg?logo=redhatopenshift)](https://www.redhat.com/en/technologies/cloud-computing/openshift)
-[![Cloud Provider: AWS ROSA](https://img.shields.io/badge/AWS-ROSA%20%2F%20EKS-orange.svg?logo=amazon-aws)](https://aws.amazon.com/rosa/)
-[![Data Plane: Traefik Proxy v3.0+](https://img.shields.io/badge/Traefik-v3.0%2B-blue.svg?logo=traefik)](https://traefik.io/)
-[![Standard: Kubernetes Gateway API v1.x](https://img.shields.io/badge/Kubernetes-Gateway%20API%20v1.x-326CE5.svg?logo=kubernetes)](https://gateway-api.sigs.k8s.io/)
-[![Repository Context](https://img.shields.io/badge/Repository-://github.com/nubenetes-green.svg)](https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws)
+<!-- ======================================================================= -->
+<!-- ARCHITECTURAL BADGES & CLUSTER TAXONOMY -->
+<!-- ======================================================================= -->
+<p align="center">
+  <a href="https://www.redhat.com/en/technologies/cloud-computing/openshift"><img src="https://img.shields.io/badge/OpenShift-v4.14%2B-EE0000?style=for-the-badge&logo=redhatopenshift&logoColor=white" alt="OpenShift 4.14+"/></a>
+  <a href="https://aws.amazon.com/rosa/"><img src="https://img.shields.io/badge/AWS-ROSA%20%2F%20NLB-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white" alt="AWS ROSA"/></a>
+  <a href="https://traefik.io/"><img src="https://img.shields.io/badge/Traefik%20Proxy-v3.0%2B-24A1C1?style=for-the-badge&logo=traefik&logoColor=white" alt="Traefik Proxy v3"/></a>
+  <a href="https://gateway-api.sigs.k8s.io/"><img src="https://img.shields.io/badge/Gateway%20API-v1.x%20Standard-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" alt="Gateway API v1"/></a>
+  <a href="https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws"><img src="https://img.shields.io/badge/Organization-nubenetes-0969DA?style=for-the-badge&logo=github&logoColor=white" alt="Nubenetes Org"/></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Security-Strict%20mTLS%20(TLS%201.3)-0A7EA4?style=flat-square&logo=shield&logoColor=white" alt="Strict mTLS"/>
+  <img src="https://img.shields.io/badge/SCC-restricted--v2%20Compliant-4C51BF?style=flat-square&logo=redhat&logoColor=white" alt="OpenShift restricted-v2 SCC"/>
+  <img src="https://img.shields.io/badge/DNS-AWS%20Route%2053%20%2B%20ExternalDNS-527FFF?style=flat-square&logo=amazonroute53&logoColor=white" alt="Route53 ExternalDNS"/>
+  <img src="https://img.shields.io/badge/L4%20Ingress-PROXY%20Protocol%20v2-232F3E?style=flat-square&logo=amazon&logoColor=white" alt="PROXY Protocol v2"/>
+  <img src="https://img.shields.io/badge/Protocol-HTTP%2F3%20%26%20gRPC-00ADD8?style=flat-square&logo=go&logoColor=white" alt="HTTP3 gRPC"/>
+  <img src="https://img.shields.io/badge/Traffic-North--South%20%26%20East--West-38A169?style=flat-square&logo=diagram-next&logoColor=white" alt="Traffic Routing"/>
+  <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square" alt="License"/>
+  <img src="https://img.shields.io/badge/Context-://github.com/nubenetes-8A2BE2?style=flat-square&logo=git&logoColor=white" alt="Repo Context"/>
+</p>
 
 ---
 
@@ -18,6 +34,20 @@ In mission-critical enterprise environments, default platform routing constructs
 2. **Solution B (Kubernetes Gateway API Stack):** A forward-looking, standardized architecture implementing the official Kubernetes Gateway API specification (`GatewayClass`, `Gateway`, `HTTPRoute`, `BackendTLSPolicy`) driven by Traefik v3.0+'s native gateway controller.
 
 Both solutions are integrated with **AWS Route 53** via automated ExternalDNS synchronization, terminate high-throughput edge traffic on **AWS Network Load Balancers (NLB)** with PROXY protocol v2, and strictly adhere to Red Hat OpenShift's default `restricted-v2` Security Context Constraints (SCC).
+
+---
+
+## Repository Overview Tags & Technical Taxonomy
+
+The repository is tagged and indexed with the following domain taxonomy:
+
+| Category | Taxonomy Tags | Technical Scope & Implementation |
+| :--- | :--- | :--- |
+| **Data Plane & Ingress** | `traefik`, `traefik-proxy`, `ingressroute`, `gateway-api`, `httproute` | Dual-engine routing: Traefik v3.0+ Custom Resource Definitions vs. Standard Kubernetes Gateway API v1.x data planes. |
+| **Platform & Cloud** | `openshift`, `redhat-openshift`, `ocp4`, `rosa`, `aws` | Engineered for Red Hat OpenShift 4.14+ on AWS (ROSA), enforcing non-root execution (`restricted-v2` SCC). |
+| **DNS & L4 Ingress** | `external-dns`, `route53`, `fqdn`, `nlb`, `aws-load-balancer-controller` | Automated DNS record synchronization in AWS Route 53, fronted by AWS Network Load Balancer (NLB) with PROXY protocol v2. |
+| **Security & Zero-Trust** | `mtls`, `zero-trust`, `scc-restricted-v2`, `hsts`, `tls-1.3` | Inter-service cryptographic authentication using internal CAs (`RequireAndVerifyClientCert` and `BackendTLSPolicy`). |
+| **Architecture & Discipline** | `platform-engineering`, `cloud-native`, `proof-of-concept`, `haproxy`, `service-mesh` | Enterprise architectural benchmarks contrasting sidecar-less mesh ingress against traditional OpenShift HAProxy routes. |
 
 ---
 
