@@ -100,59 +100,41 @@ North-South ingress handles external user requests entering the AWS cloud, trave
 ### North-South Architecture Diagram
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 260}}}%%
 flowchart TD
-    subgraph Client_Layer ["1. Client & DNS Resolution Layer"]
+    subgraph Edge_DNS ["1. Edge Resolution & L4 Ingress"]
         User(["<b>Client Consumer</b><br/>Browser / Mobile / API"])
-        R53["<b>AWS Route 53 DNS</b><br/>• Hosted Zone: company.com<br/>• Dual-Stack Alias A-Record<br/>• Auto-synced via ExternalDNS"]
+        R53["<b>AWS Route 53 DNS</b><br/>• Auto-sync via ExternalDNS<br/>• Dual-Stack Alias A-Record"]
+        NLB["<b>AWS Network Load Balancer (NLB)</b><br/>• Scheme: Internet-Facing (L4 TCP)<br/>• Port Mapping: 80:8000, 443:8443<br/>• PROXY Protocol v2 (Real IP)"]
+        User -->|"1. Query FQDN"| R53
+        R53 -.->|"Resolve Alias"| NLB
+        User -->|"2. HTTPS Traffic"| NLB
     end
 
-    subgraph AWS_Edge ["2. AWS Cloud Perimeter Layer"]
-        NLB["<b>AWS Network Load Balancer (NLB)</b><br/>• Scheme: Internet-Facing (L4 TCP)<br/>• Port Forwarding: 80:8000, 443:8443<br/>• PROXY Protocol v2 (Real IP)"]
-    end
-
-    subgraph Ingress_Core ["3. Ingress Infrastructure Tier (Namespace: traefik-system)"]
+    subgraph Ingress_Tier ["2. Ingress Infrastructure Tier (traefik-system)"]
         Traefik["<b>Traefik Proxy v3.0+ Controller</b><br/>• SCC: restricted-v2 (UID 65532)<br/>• EntryPoints: web (:8000), websecure (:8443)<br/>• Direct OpenShift Router Bypass"]
     end
 
-    subgraph Routing_Engines ["4. Routing Policy & Evaluation Tier"]
+    NLB -->|"3. TCP + PROXY v2"| Traefik
+
+    subgraph SolA ["3A. Solution A: Traefik CRDs (traefik-crd-poc)"]
         direction TB
-
-        subgraph SolA_Flow ["Solution A: Traefik CRDs (traefik-crd-poc)"]
-            direction TB
-            IR_HTTP["<b>IngressRoute HTTP (:8000)</b><br/>• Host: company.com / api.company.com<br/>• Middleware: 301 HTTPS Redirect"]
-            IR_HTTPS["<b>IngressRoute HTTPS (:8443)</b><br/>• TLS Secret: production-tls-secret<br/>• TLSOption: strict-tls-options"]
-            MW["<b>Traefik Middlewares</b><br/>• HSTS 1-Year Preload & CSP<br/>• CORS Whitelist & X-Forwarded-Host"]
-            IR_HTTPS --> MW
-        end
-
-        subgraph SolB_Flow ["Solution B: Gateway API (traefik-gateway-poc)"]
-            direction TB
-            GW["<b>AWS Edge Gateway</b><br/>• Listeners: http-edge, https-edge<br/>• AllowedRoutes: Namespace Selector"]
-            HR_HTTP["<b>HTTPRoute Redirect (:80)</b><br/>• Filter: RequestRedirect (301)"]
-            HR_HTTPS["<b>HTTPRoute App/API (:443)</b><br/>• Host: company.com, api.company.com<br/>• Filters: HeaderModifier, URLRewrite"]
-            GW --> HR_HTTP
-            GW --> HR_HTTPS
-        end
+        IR_A["<b>IngressRoute (HTTP & HTTPS)</b><br/>• Port 8000: 301 Redirect<br/>• Port 8443: api.company.com<br/>• Secret: production-tls-secret<br/>• TLSOption: strict-tls-options"]
+        MW["<b>Traefik Middlewares</b><br/>• HSTS 1-Year Preload & CSP<br/>• CORS & X-Forwarded-Host"]
+        ServiceB_A["<b>Service-B Pods (Backend)</b><br/>• Namespace: traefik-crd-poc<br/>• Port 8080 (HTTP)"]
+        IR_A --> MW --> ServiceB_A
     end
 
-    subgraph Workload_Tier ["5. Target Application Workloads"]
-        ServiceB_A["<b>Service-B Pods</b><br/>Namespace: traefik-crd-poc"]
-        ServiceB_B["<b>Service-B Pods</b><br/>Namespace: traefik-gateway-poc"]
+    subgraph SolB ["3B. Solution B: Gateway API (traefik-gateway-poc)"]
+        direction TB
+        GW["<b>AWS Edge Gateway</b><br/>• Listeners: http-edge & https-edge<br/>• Namespace Selector Delegation"]
+        HR["<b>HTTPRoute (Redirect & API)</b><br/>• Port 80: RequestRedirect (301)<br/>• Port 443: api.company.com<br/>• Filters: HeaderModifier, URLRewrite"]
+        ServiceB_B["<b>Service-B Pods (Backend)</b><br/>• Namespace: traefik-gateway-poc<br/>• Target Port: 8080 (HTTP)"]
+        GW --> HR --> ServiceB_B
     end
 
-    User -->|"Query FQDN"| R53
-    R53 -.->|"Alias IP"| User
-    User -->|"HTTPS Request"| NLB
-    NLB -->|"TCP + PROXY v2"| Traefik
-
-    Traefik -->|"Host: company.com (CRD)"| IR_HTTP
-    IR_HTTP -->|"301 Redirect"| User
-    Traefik -->|"Host: api.company.com (CRD)"| IR_HTTPS
-    MW -->|"Forward Request"| ServiceB_A
-
-    Traefik -->|"Host: company.com (Gateway)"| GW
-    HR_HTTP -->|"301 Redirect"| User
-    HR_HTTPS -->|"Forward Request"| ServiceB_B
+    Traefik -->|"Route: CRD IngressRoute"| IR_A
+    Traefik -->|"Route: Gateway API"| GW
 ```
 
 ### Hop-by-Hop North-South Mechanics Breakdown
