@@ -282,21 +282,34 @@ flowchart LR
 
 #### 1. Nivel 0: `none` (Postura por Defecto / Máxima Simplicidad)
 * **Configuración del Flag:** `gateway.backendTls.enabled: false` y `serviceMesh.mode: none`.
-* **Mecanismo:** El Gateway L7 gestionado por Google termina el TLS perimetral con certificados comodín gestionados y valida autenticación corporativa con **Google Identity-Aware Proxy (IAP)**. El salto interno desde el balanceador al pod viaja en HTTP plano dentro de la VPC privada de Google.
+* **Tráfico North-South & FQDNs Perimetrales:** El Gateway L7 gestionado por Google (`gke-l7-global-external-managed`) termina el TLS perimetral con certificados comodín gestionados para todos los FQDNs públicos (`app.jenkins2026.nubenetes.com`, `jenkins.jenkins2026...`) y valida autenticación corporativa con **Google Identity-Aware Proxy (IAP)**. El salto interno desde el balanceador al pod viaja en HTTP plano dentro de la VPC privada de Google.
+* **Tráfico East-West sobre FQDNs de Servicio:** La comunicación interna entre microservicios (de servicio a servicio o desde runners de CI) se realiza directamente a través de los **FQDNs canónicos de Kubernetes** (`<servicio>.<namespace>.svc.cluster.local`) en HTTP plano en Capa 7.
 * **Seguridad Subyacente:** La red no está desprotegida: Google cifra el tráfico en la capa de red física, y Dataplane V2 (eBPF Cilium) aplica cifrado transparente nodo a nodo vía **WireGuard** (`in_transit_encryption_config`) junto con `NetworkPolicies` estrictas en modo *default-deny*.
-* **Veredicto:** Cero sobrecoste operacional, cero consumo extra de memoria/CPU, ideal para entornos de desarrollo, PoCs o cargas donde la red privada se considera frontera de confianza suficiente.
+* **Limitación:** El cifrado WireGuard es a nivel de nodo de infraestructura; **no proporciona identidad criptográfica por carga de trabajo** ni verificación en el FQDN de servicio.
+* **Veredicto:** Cero sobrecoste operacional, cero consumo extra de memoria/CPU, ideal para entornos de desarrollo, PoCs o plataformas donde la red privada y las NetworkPolicies se consideran frontera de confianza suficiente.
 
-#### 2. Nivel 1: `backend-tls` (Re-cifrado de Borde a Pod Sin Sidecars)
+#### 2. Nivel 1: `backend-tls` (Re-cifrado sobre FQDN de Servicio Sin Sidecars)
 * **Configuración del Flag:** `gateway.backendTls.enabled: true` (o variable de entorno `JENKINS2026_GATEWAY_BACKEND_TLS_ENABLED=true`).
-* **Mecanismo:** Instala automáticamente `cert-manager` y una Autoridad de Certificación (CA) interna (`ClusterIssuer`). Despliega la directiva estándar **`BackendTLSPolicy`** de Gateway API (`gateway.networking.k8s.io`). El Gateway de Google re-encripta la conexión en HTTPS hacia el pod y valida criptográficamente que el certificado servido por el pod fue firmado por la CA interna del clúster (`ca.crt` montado vía ConfigMap).
-* **Tráfico East-West:** La comunicación entre microservicios se mantiene gestionada por Dataplane V2 / WireGuard.
-* **Veredicto:** Añade autenticación del servidor y re-cifrado en el salto perimetral, cerrando el riesgo de suplantación de servicios dentro del clúster **sin penalizar el clúster con sidecars de Envoy ni consumir vCPU/RAM adicional por réplica**.
+* **Mecanismo:** Instala automáticamente `cert-manager` y una Autoridad de Certificación (CA) interna (`ClusterIssuer`). Despliega la directiva estándar **`BackendTLSPolicy`** de Gateway API (`gateway.networking.k8s.io`).
+* **El FQDN de Servicio como Doble Ancla Criptográfica:**  
+  En `jenkins-2026`, el FQDN interno del servicio (`<servicio>.<namespace>.svc.cluster.local`, e.g., `headlamp.headlamp.svc.cluster.local`) cumple una función dual imprescindible en el `BackendTLSPolicy` (`validation.hostname`):
+  1. Es el **SNI** que el balanceador L7 de Google envía en el handshake TLS hacia el pod.
+  2. Es el **SAN (Subject Alternative Name)** contra el que el balanceador valida el certificado servido por el pod, verificando la cadena contra el ConfigMap `jenkins-2026-backend-tls-ca` (`ca.crt`).
+  Esto impide que un pod malicioso o comprometido en otro namespace pueda suplantar el tráfico del servicio.
+* **Tráfico East-West:** Los clientes internos del clúster (como Backstage invocando a Grafana o scripts de prueba de integración) pueden invocar el FQDN del servicio directamente en `https://<servicio>.<namespace>.svc.cluster.local:<puerto-tls>` montando el bundle de la CA interna.
+* **Limitación East-West:** Es estrictamente un cifrado **unidireccional (solo autenticación del servidor)**. El cliente valida el FQDN del pod de destino, pero el servidor no valida criptográficamente la identidad del cliente (no hay mTLS mutuo ni autorización L7 por ruta HTTP).
+* **Veredicto:** Re-cifrado y autenticación de host robustos sobre el FQDN interno **sin penalizar el clúster con sidecars de Envoy ni consumir vCPU/RAM adicional por réplica**.
 
-#### 3. Nivel 2: `cloud-service-mesh` (Zero-Trust Integral con Istio Gestionado)
+#### 3. Nivel 2: `cloud-service-mesh` (Zero-Trust Integral con mTLS y FQDNs East-West)
 * **Configuración del Flag:** `serviceMesh.mode: cloud-service-mesh` (o variable de entorno `JENKINS2026_SERVICE_MESH_MODE=cloud-service-mesh`).
-* **Mecanismo:** Activa la integración nativa de **Cloud Service Mesh (CSM)** en Google Cloud bajo el SKU *standalone* (a la carta por cliente de malla, sin requerir licencias de GKE Enterprise). El plano de control gestionado inyecta automáticamente sidecars de `istio-proxy` en los namespaces seleccionados (`istio.io/rev=asm-managed`).
-* **Tráfico North-South & East-West:** El puerto de entrada del Gateway opera en modo `PERMISSIVE`, mientras que todo el tráfico de servicio a servicio (East-West) se eleva a **mTLS mutuo estricto con identidad criptográfica SPIFFE** por pod (`PeerAuthentication STRICT`), gobernado por políticas de autorización de capa 7 (`AuthorizationPolicy`).
-* **Veredicto:** Cobertura Zero-Trust absoluta a nivel de proceso para normativas financieras extremas (PCI-DSS 4.0 / SOC 2 Type II), asumiendo el coste operacional de los sidecars pero delegando el plano de control y la rotación de certificados en Google Mesh CA.
+* **Mecanismo:** Activa Google Cloud Service Mesh (CSM) bajo el SKU *standalone* (a la carta por cliente de malla). El plano de control gestionado inyecta automáticamente sidecars de `istio-proxy` en los namespaces de aplicación (`istio.io/rev=asm-managed`).
+* **Tráfico East-West sobre FQDNs de Servicio:** Todas las llamadas internas de microservicio a microservicio que resuelven FQDNs internos (`gateway` $\rightarrow$ `backend.microservices.svc.cluster.local`) son interceptadas transparentemente por los sidecars de Envoy.
+* **Identidad Criptográfica SPIFFE & mTLS:** Se establece **mTLS mutuo estricto** con certificados emitidos por Google Mesh CA portando identidades SPIFFE de carga de trabajo (`spiffe://<project-id>.svc.id.goog/ns/<ns>/sa/<sa>`), gobernado por `PeerAuthentication STRICT`.
+* **Autorización Granular L7:** Se aplican reglas de `AuthorizationPolicy` que restringen qué llamadas HTTP (métodos y rutas) se permiten entre FQDNs de microservicios (e.g., solo el ServiceAccount del Gateway puede invocar endpoints de negocio en el Backend).
+* **Trampas Operacionales Reales Resueltas en `jenkins-2026`:**
+  * *La Trampa de los Clientes No-Mesh en East-West (`curl exit 56`):* Cuando un componente no mesheado (como el balanceador de GKE en el puerto `:8080` o un runner de CI en el namespace `jenkins`) intentaba invocar el FQDN de un pod mesheado en modo `STRICT`, la conexión era abortada por fallo de handshake TLS. `jenkins-2026` resolvió esto aplicando directivas `PeerAuthentication` con `portLevelMtls: PERMISSIVE` exclusivamente en el puerto de entrada/salud, manteniendo el resto del tráfico East-West en `STRICT`.
+  * *La Trampa de Cuotas de Cómputo por Sidecar:* Los sidecars de Istio exigían por defecto 2 vCPU de límite, provocando rechazo de pods en actualizaciones continuas por `exceeded quota`. Se solucionó fijando anotaciones declarativas en los pods (`proxyCPULimit: "500m"`, `proxyMemoryLimit: "512Mi"`).
+* **Veredicto:** Cobertura Zero-Trust absoluta a nivel de proceso para normativas bancarias o de salud extremas (PCI-DSS 4.0 / SOC 2 Type II), asumiendo el coste operacional de los sidecars pero automatizando el plano de control con Google.
 
 ---
 

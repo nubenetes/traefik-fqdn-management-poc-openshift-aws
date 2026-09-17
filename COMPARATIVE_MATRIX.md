@@ -39,21 +39,21 @@ The following deep-dive matrix contrasts Solution A, Solution B, and Native Open
 Selecting between Traefik CRDs (Solution A) and Gateway API (Solution B) requires evaluating organization maturity, infrastructure roadmap, and operational tooling.
 
 ```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 340, "nodePadding": 24}}}%%
+%%{init: {"flowchart": {"wrappingWidth": 440, "nodePadding": 30, "diagramPadding": 32}}}%%
 flowchart TD
-    Start(["<b>Ingress Architecture Decision Flow</b><br/>Red Hat OpenShift 4.14+ on AWS"])
+    Start(["&nbsp;&nbsp;&nbsp;<b>Ingress Architecture Decision Flow</b>&nbsp;&nbsp;&nbsp;<br/>&nbsp;&nbsp;&nbsp;Red Hat OpenShift 4.14+ on AWS&nbsp;&nbsp;&nbsp;"])
 
-    D1("<b>Step 1: OpenShift Native Ingress Fit</b><br/>Do standard OpenShift Routes satisfy all basic<br/>ingress, wildcard FQDN & security needs?")
+    D1("<b>Step 1: OpenShift Native Ingress Fit</b><br/><br/>Do standard OpenShift Routes satisfy all basic<br/>ingress, wildcard FQDN & security needs?<br/>&nbsp;")
 
-    NativeRoute["<b>Use Native OpenShift Routes</b><br/>• Out-of-the-box Ingress Operator management<br/>• Zero additional controller overhead<br/>• Default *.apps cluster wildcard domain"]
+    NativeRoute["<b>Use Native OpenShift Routes</b><br/><br/>• Out-of-the-box Ingress Operator management<br/>• Zero additional controller overhead<br/>• Default *.apps cluster wildcard domain<br/>&nbsp;"]
 
-    D2("<b>Step 2: Multi-Cloud Parity & Portability</b><br/>Is cross-platform manifest portability across<br/>AWS EKS, GKE, or On-Prem required?")
+    D2("<b>Step 2: Multi-Cloud Parity & Portability</b><br/><br/>Is cross-platform manifest portability across<br/>AWS EKS, GKE, or On-Prem required?<br/>&nbsp;")
 
-    D3("<b>Step 3: Enterprise Multi-Tenancy & RBAC</b><br/>Is strict Platform Admin vs. App Developer<br/>tri-persona separation mandatory?")
+    D3("<b>Step 3: Enterprise Multi-Tenancy & RBAC</b><br/><br/>Is strict Platform Admin vs. App Developer<br/>tri-persona separation mandatory?<br/>&nbsp;")
 
-    SolB["<b>Solution B: Kubernetes Gateway API</b><br/>• CNCF de jure standard (v1.x specification)<br/>• Role-oriented Gateway vs. HTTPRoute boundaries<br/>• Complete zero vendor lock-in across clouds"]
+    SolB["<b>Solution B: Kubernetes Gateway API</b><br/><br/>• CNCF de jure standard (v1.x specification)<br/>• Role-oriented Gateway vs. HTTPRoute boundaries<br/>• Complete zero vendor lock-in across clouds<br/>&nbsp;"]
 
-    SolA["<b>Solution A: Traefik Proxy CRDs</b><br/>• Battle-tested IngressRoute & Middleware CRDs<br/>• High delivery velocity for unified engineering teams<br/>• Sub-second dynamic in-memory configuration reload"]
+    SolA["<b>Solution A: Traefik Proxy CRDs</b><br/><br/>• Battle-tested IngressRoute & Middleware CRDs<br/>• High delivery velocity for unified engineering teams<br/>• Sub-second dynamic in-memory configuration reload<br/>&nbsp;"]
 
     Start --> D1
     D1 -->|"Yes: Basic"| NativeRoute
@@ -158,6 +158,40 @@ flowchart LR
 5. **Multi-Domain AWS Route 53 Automation via ExternalDNS:**
    - *OpenShift Route Limitation:* The OpenShift Ingress Operator natively manages only the default cluster wildcard DNS record. Exposing arbitrary corporate external FQDNs (`company.com`, `api.company.com`) requires external automation scripts or manual DNS provisioning in AWS Route 53.
    - *Traefik Advantage:* Native integration with ExternalDNS via standard annotations (`external-dns.alpha.kubernetes.io/hostname`) allows immediate, declarative synchronization of public and private AWS Route 53 hosted zones whenever a new `IngressRoute` or `Gateway` is deployed.
+
+---
+
+## 4. Multi-Cloud Companion Case Study: Feature-Flagged Intra-Cluster Security & FQDNs in nubenetes/jenkins-2026 (GKE)
+
+To understand how modern Platform Engineering solves the tension between **sidecar-free simplicity** and **comprehensive Zero-Trust mTLS** on other cloud providers, examine the companion production repository:  
+👉 [**github.com/nubenetes/jenkins-2026**](https://github.com/nubenetes/jenkins-2026)
+
+While this repository demonstrates bypassing OpenShift's native routing on AWS ROSA via Traefik Proxy v3, `jenkins-2026` standardizes on **Kubernetes Gateway API** (`gke-l7-global-external-managed`) on **Google Kubernetes Engine (GKE)** and governs its intra-cluster security and FQDN lifecycle via **declarative Feature Flags**.
+
+### The FQDN Architectural Model in `jenkins-2026`
+
+1. **North-South Edge FQDNs:**
+   - Public hostnames (`app.jenkins2026.nubenetes.com`, `jenkins.jenkins2026.nubenetes.com`) are mapped via standard `HTTPRoute` resources to a single Google Cloud Global External L7 Gateway.
+   - Cloud DNS maps hostnames to a single Anycast static IP, while Google-managed wildcard certificates terminate edge TLS alongside Identity-Aware Proxy (IAP) user authentication.
+
+2. **Internal Service FQDNs as the Dual Cryptographic Anchor:**
+   - In `jenkins-2026`, the internal Kubernetes Service FQDN (`<service>.<namespace>.svc.cluster.local`, e.g., `headlamp.headlamp.svc.cluster.local`) plays a critical dual role in the Gateway API `BackendTLSPolicy` (`validation.hostname`):
+     - **SNI (Server Name Indication):** The Google L7 LB injects the Service FQDN in the TLS ClientHello during the backend hop.
+     - **SAN (Subject Alternative Name):** The LB cryptographically validates that the pod's certificate (minted by `cert-manager` from the internal cluster CA) explicitly includes this FQDN, matching against the CA trust bundle ConfigMap (`ca.crt`).
+   - This eliminates cross-namespace service impersonation on the ingress hop **with zero sidecars**.
+
+### East-West Inter-Service Traffic Across the 3 Feature Flag States
+
+| State | Feature Flag Setting | North-South (LB → Pod) | East-West (Pod ↔ Pod over Service FQDN) | Cryptographic Identity | Sidecars |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Nivel 0: `none`** (Default) | `gateway.backendTls.enabled: false`<br>`serviceMesh.mode: none` | Plain HTTP over private VPC | Plain HTTP over `<svc>.<ns>.svc.cluster.local`<br>Protected by Dataplane V2 (eBPF Cilium) + WireGuard | Node-level only (WireGuard); no workload identity | **0 sidecars** |
+| **Nivel 1: `backend-tls`** | `gateway.backendTls.enabled: true`<br>`serviceMesh.mode: none` | Re-encrypted HTTPS validated against internal CA via `BackendTLSPolicy` | Optional HTTPS over Service FQDN by mounting CA bundle.<br>**Server-auth only** (unidirectional) | Cluster CA (`cert-manager`); server authentication only | **0 sidecars** |
+| **Nivel 2: `cloud-service-mesh`** | `gateway.backendTls.enabled: false`<br>`serviceMesh.mode: cloud-service-mesh` | Ingress port in `PERMISSIVE` mode | **Strict Mutual mTLS** intercepted by Envoy.<br>Layer 7 `AuthorizationPolicy` rules per route | **Workload SPIFFE Identity** per ServiceAccount (Google Mesh CA) | **Yes** (`istio-proxy` per pod) |
+
+### Key Operational Lessons from `jenkins-2026`:
+- **The Non-Mesh Caller Trap (`curl exit 56`):** Non-meshed callers (such as the GKE ingress LB or CI smoke-test runners in non-meshed namespaces) attempting to call a meshed Service FQDN will be rejected by `PeerAuthentication STRICT`. `jenkins-2026` solves this with port-level `PERMISSIVE` exceptions on edge ingress/health ports, while preserving `STRICT` on inter-service traffic.
+- **Strict Mutual Exclusivity:** `backend-tls` and `cloud-service-mesh` cannot be active simultaneously (a mesh subsumes the LB→pod hop; running `BackendTLSPolicy` against cert-manager at the same time causes dual-handshake conflicts and 502 Bad Gateway errors).
+- **Architectural Takeaway:** OpenShift on AWS can achieve mesh-less East-West mTLS using Traefik as an internal Layer 7 gateway over canonical FQDNs (`*.apps.cluster.local`), while GKE platforms can use declarative Feature Flags to choose between sidecar-free server TLS and full managed Istio service mesh as compliance needs evolve.
 
 ---
 

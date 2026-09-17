@@ -282,20 +282,33 @@ flowchart LR
 
 #### 1. Level 0: `none` (Default Baseline / Operational Simplicity)
 * **Flag Configuration:** `gateway.backendTls.enabled: false` and `serviceMesh.mode: none`.
-* **Mechanism:** Google's managed Layer 7 Gateway terminates edge TLS with managed wildcard certificates and authenticates enterprise users via **Identity-Aware Proxy (IAP)**. The internal load balancer $\rightarrow$ pod hop travels as plain HTTP across Google's private VPC.
+* **North-South & Edge FQDNs:** Google's managed Layer 7 Gateway (`gke-l7-global-external-managed`) terminates edge TLS with managed wildcard certificates for all external vanity FQDNs (`app.jenkins2026.nubenetes.com`, `jenkins.jenkins2026...`) and authenticates enterprise users via **Identity-Aware Proxy (IAP)**. The internal load balancer $\rightarrow$ pod hop travels as plain HTTP across Google's private VPC.
+* **East-West Traffic over Service FQDNs:** Microservice-to-microservice calls (or from CI smoke test runners) communicate directly over standard Kubernetes **Service FQDNs** (`<service>.<namespace>.svc.cluster.local`) using plain HTTP at Layer 7.
 * **Underlying Defense:** The hop is not unprotected on the wire: Google encrypts transit traffic across its physical network, and Dataplane V2 (eBPF Cilium) transparently encrypts node-to-node traffic via **WireGuard** (`in_transit_encryption_config`), combined with strict *default-deny* NetworkPolicies.
+* **Limitation:** WireGuard operates at the infrastructure node layer; it provides **zero per-workload cryptographic identity** and no hostname verification over the service FQDN.
 * **Verdict:** Zero operational complexity, zero CPU/RAM overhead, ideal for standard workloads or environments where private VPC network boundaries satisfy organizational threat models.
 
-#### 2. Level 1: `backend-tls` (Edge-to-Pod Re-encryption Without Sidecars)
+#### 2. Level 1: `backend-tls` (Edge-to-Pod Re-encryption over Service FQDN Without Sidecars)
 * **Flag Configuration:** `gateway.backendTls.enabled: true` (or environment variable override `JENKINS2026_GATEWAY_BACKEND_TLS_ENABLED=true`).
-* **Mechanism:** Automatically provisions `cert-manager` and an in-cluster Root Certificate Authority (`ClusterIssuer`). Deploys the standard Kubernetes Gateway API **`BackendTLSPolicy`** (`gateway.networking.k8s.io`). The Google Gateway re-encrypts incoming requests over HTTPS and cryptographically validates the backend pod's certificate against the internal CA (`ca.crt` mounted via ConfigMap).
-* **East-West Traffic:** Inter-service microservice calls remain securely encapsulated by Dataplane V2 / WireGuard.
-* **Verdict:** Cryptographically closes internal service impersonation and spoofing risks on the edge ingress hop **without injecting a single Envoy sidecar or incurring per-pod compute taxes**.
+* **Mechanism:** Automatically provisions `cert-manager` and an in-cluster Root Certificate Authority (`ClusterIssuer`). Deploys the standard Kubernetes Gateway API **`BackendTLSPolicy`** (`gateway.networking.k8s.io`).
+* **The Service FQDN as a Dual Cryptographic Anchor:**  
+  In `jenkins-2026`, the internal Service FQDN (`<service>.<namespace>.svc.cluster.local`, e.g., `headlamp.headlamp.svc.cluster.local`) serves a vital dual role in the `BackendTLSPolicy` (`validation.hostname`):
+  1. It is the **SNI** that Google's L7 Gateway sends during the backend TLS handshake to the pod.
+  2. It is the **SAN (Subject Alternative Name)** against which the Gateway validates the pod's serving certificate, verifying the trust chain against the `jenkins-2026-backend-tls-ca` ConfigMap (`ca.crt`).
+  This strictly closes inter-namespace service impersonation or spoofing without sidecars.
+* **East-West Traffic:** In-cluster clients (such as Backstage querying Grafana or integration test runners) can consume the Service FQDN over HTTPS directly at `https://<service>.<namespace>.svc.cluster.local:<tls-port>` by mounting the internal CA trust bundle.
+* **East-West Limitation:** This remains strictly **one-way server-authenticated TLS**. The calling client verifies the server pod's FQDN, but the server does not cryptographically authenticate the client's identity (no client certificate verification, no mutual mTLS, no L7 URI path authorization).
+* **Verdict:** Robust hostname verification and in-transit encryption over internal Service FQDNs **without injecting a single Envoy sidecar or incurring per-pod compute taxes**.
 
-#### 3. Level 2: `cloud-service-mesh` (Comprehensive Zero-Trust via Managed Istio)
+#### 3. Level 2: `cloud-service-mesh` (Comprehensive Zero-Trust via Managed Istio & East-West mTLS)
 * **Flag Configuration:** `serviceMesh.mode: cloud-service-mesh` (or environment variable override `JENKINS2026_SERVICE_MESH_MODE=cloud-service-mesh`).
-* **Mechanism:** Activates Google Cloud's **Cloud Service Mesh (CSM)** Fleet feature using the standalone SKU (billed per mesh client rather than bloated per-vCPU GKE Enterprise licensing). The managed control plane automatically injects `istio-proxy` sidecars into designated namespaces (`istio.io/rev=asm-managed`).
-* **North-South & East-West Traffic:** The Gateway's ingress port operates in `PERMISSIVE` mode, while all internal microservice-to-microservice calls are strictly enforced with **mutual mTLS carrying cryptographic SPIFFE workload identities** (`PeerAuthentication STRICT`), governed by Layer 7 authorization policies (`AuthorizationPolicy`).
+* **Mechanism:** Activates Google Cloud's **Cloud Service Mesh (CSM)** Fleet feature using the standalone SKU (billed per mesh client). The managed control plane automatically injects `istio-proxy` sidecars into designated application namespaces (`istio.io/rev=asm-managed`).
+* **East-West Traffic over Service FQDNs:** All internal service-to-service calls resolving internal FQDNs (`gateway` $\rightarrow$ `backend.microservices.svc.cluster.local`) are transparently intercepted by Envoy sidecars.
+* **SPIFFE Cryptographic Identity & mTLS:** Inter-service calls strictly enforce **mutual mTLS** with certificates issued by Google Mesh CA bearing workload SPIFFE identities (`spiffe://<project-id>.svc.id.goog/ns/<ns>/sa/<sa>`), enforced via `PeerAuthentication STRICT`.
+* **Granular Layer 7 Authorization:** Declarative `AuthorizationPolicy` rules restrict which HTTP methods and URL paths can be called between microservice FQDNs (e.g., only the Gateway's ServiceAccount may call backend processing endpoints).
+* **Real-World Operational Traps Solved in `jenkins-2026`:**
+  * *The Non-Mesh East-West Caller Trap (`curl exit 56`):* Non-meshed workloads (such as the GKE ingress gateway on port `:8080` or CI smoke test runners in the `jenkins` namespace) attempting to hit a meshed pod over its Service FQDN were rejected by `STRICT` mTLS. `jenkins-2026` solved this by applying per-workload `PeerAuthentication` with `portLevelMtls: PERMISSIVE` on edge ingress and health-check ports, while strictly preserving `STRICT` on internal East-West traffic.
+  * *The Sidecar Resource Quota Trap:* Default Istio sidecars requested 2 vCPU limits, causing rolling update surge pods to fail with `exceeded quota`. This was resolved by applying declarative pod annotations (`proxyCPULimit: "500m"`, `proxyMemoryLimit: "512Mi"`).
 * **Verdict:** End-to-end Zero-Trust compliance for regulated financial or healthcare workloads (PCI-DSS 4.0 / SOC 2 Type II), trading off sidecar operational overhead for automated control plane and CA rotation managed by Google.
 
 ---
