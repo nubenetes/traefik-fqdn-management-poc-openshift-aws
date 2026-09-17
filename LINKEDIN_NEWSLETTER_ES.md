@@ -214,14 +214,17 @@ En ambos enfoques demostrados en el repositorio, se implementa un bypass complet
 Uno de los mayores hallazgos de este PoC es cómo lograr **mTLS mutuo criptográficamente riguroso entre microservicios en distintos namespaces** sin pagar el peaje de Istio:
 
 * **El Problema Típico:** Para cumplir normativas como PCI-DSS, HIPAA o ENS Alto, los equipos despliegan Envoy sidecars en cada Pod. Esto consume 100MB–250MB de RAM y 0.2 vCPU adicionales por cada réplica, sumando gigabytes de desperdicio en clústeres con cientos de microservicios.
-* **La Solución Demostrada en el Repo:**  
-  Utilizar Traefik como plano de control y proxy perimetral interno para el dominio de clúster `*.apps.cluster.local`:
-  1. `Service-A` inicia una llamada HTTPS a `https://service-b.apps.cluster.local:8443/api/v1/internal` presentando su certificado de cliente emitido por la CA interna.
-  2. Traefik intercepta el tráfico en su EntryPoint interno, valida la cadena contra el secreto `internal-ca-secret` mediante `clientAuthType: RequireAndVerifyClientCert`, y si el certificado falta o expiró, aborta la conexión en el handshake TLS.
-  3. Traefik aplica anti-spoofing verificando que el SNI coincida con el encabezado `Host` y filtra por IP para descartar cualquier tráfico externo.
-  4. Finalmente, Traefik abre una conexión HTTPS segura hacia el Pod de `service-b`, validando el SAN mediante `ServersTransport` (Solución A) o `BackendTLSPolicy` (Solución B).
+* **La Realidad de CoreDNS en OpenShift:** En OpenShift 4.x, los equipos de aplicaciones **no pueden modificar las tablas ni zonas del CoreDNS interno**. El ConfigMap `dns-default` en el namespace `openshift-dns` está estrictamente reconciliado por el **OpenShift DNS Operator** (`dns.operator.openshift.io`), que revierte cualquier cambio manual en segundos. Además, declarar zonas DNS a nivel de clúster (`dnses.operator.openshift.io/default`) exige privilegios de `cluster-admin` (inaccesibles para desarrolladores en entornos multi-inquilino) y genera el peligro de *Split-Brain DNS*.
+* **La Solución Demostrada en el Repo: Split-Horizon Ingress con Manifiestos IngressRoute + Middleware:**  
+  En lugar de hackear DNS o inyectar sidecars, Traefik actúa como plano de enrutamiento interno mediante el tándem declarativo **`IngressRoute` + `Middleware`**:
+  1. **Resolución Nativa sin Tocar CoreDNS:** `Service-A` inicia una llamada HTTPS utilizando el FQDN de servicio de clúster nativo: `https://service-b.apps.cluster.local:8443/api/v1/internal`, presentando su certificado de cliente emitido por la CA corporativa interna.
+  2. **Intercepción y Validación Criptográfica en IngressRoute:** El recurso `IngressRoute` interno de Traefik ([`03-ingressroute-east-west.yaml`](./manifests/solution-a-traefik-crds/03-ingressroute-east-west.yaml)) intercepta el tráfico en su EntryPoint interno. Vincula el objeto `TLSOption` (`strict-mtls-option`), validando el certificado de cliente contra el secreto `internal-ca-secret` con `clientAuthType: RequireAndVerifyClientCert`. Si el certificado falta, expiró o no pertenece a la CA interna, Traefik aborta la conexión inmediatamente en el handshake TLS.
+  3. **Cadena de Middlewares de Seguridad y Mutación:** Traefik ejecuta su pipeline de Middlewares antes de entregar la petición:
+     - **`middleware-internal-east-west-allowlist`:** Aplica un filtro de capa IP (`ipAllowList`) restringiendo el tráfico exclusivamente al CIDR de Pods de OpenShift (`10.128.0.0/14`) y la VPC (`10.0.0.0/16`), bloqueando accesos no autorizados.
+     - **`middleware-forwarded-host-mutation`:** Si el microservicio de destino espera recibir el FQDN corporativo canónico (`Host: api.empresa.com`) para validar tokens JWT o cabeceras CORS, el Middleware de cabeceras de Traefik muta el `Host` e inyecta `X-Forwarded-Host: api.empresa.com` y `X-Forwarded-Proto: https` de forma totalmente transparente.
+  4. **Salto Backend Cifrado con ServersTransport:** Finalmente, Traefik abre una conexión HTTPS segura hacia los Pods de `service-b`, validando el SAN y el certificado del pod upstream mediante `ServersTransport` (Solución A) o `BackendTLSPolicy` (Solución B).
 
-**Resultado:** Cifrado Zero-Trust de extremo a extremo, trazable, verificable por auditoría y con **cero sidecars inyectados**.
+**Resultado:** Cifrado Zero-Trust de extremo a extremo, trazable, verificable por auditoría y con **cero sidecars inyectados y cero modificaciones en el operador de DNS de OpenShift**.
 
 ---
 
@@ -402,18 +405,45 @@ Existe un patrón arquitectónico cada vez más extendido en plataformas empresa
 #### ¿Por qué Falla OpenShift Routes ante este Escenario?
 En OpenShift tradicional, una `Route` está vinculada estructuralmente a un IngressController perimetral expuesto a AWS. Si un microservicio interno (e.g. un frontend con Server-Side Rendering (SSR), un orquestador de pedidos o un webhook local) realiza una llamada hacia `https://api.empresa.com`, la resolución DNS lo envía al balanceador público externo de AWS (NLB/ALB) y el tráfico vuelve a entrar al clúster por el router perimetral.  
 Este fenómeno de **Hairpinning** genera graves penalizaciones de arquitectura:
-1. **Penalización Severa de Latencia:** Añade saltos de red innecesarios fuera del tejido SDN del clúster (OVN-Kubernetes) atravesando interfaces públicas de AWS.
+1. **Penalización Severa de Latencia:** Añade saltos de red innecesarios fuera del tejido SDN del clúster (OVN-Kubernetes) atravesando interfaces públicas de AWS (15–40 ms de degradación añadida).
 2. **Costes Inútiles de Transferencia de Datos en AWS:** Se factura tráfico de salida y entrada (egress/ingress data transfer) en balanceadores y NAT Gateways para comunicaciones entre pods vecinos.
 3. **Pérdida de la Identidad Zero-Trust:** El tráfico interno sale al perímetro público perdiendo la trazabilidad de IP de origen y la capacidad de autenticar el certificado de cliente interno.
 4. **Punto Único de Fallo:** Una degradación en la conectividad externa de AWS o en el gateway de internet puede tumbar llamadas estrictamente internas entre microservicios del mismo clúster.
 
-#### La Solución Elegante con Traefik / Gateway API (Split-Horizon Ingress):
-Traefik permite enlazar el **mismo FQDN (`api.empresa.com`) a múltiples puntos de entrada (EntryPoints)** con políticas de seguridad desacopladas:
-* **Entrada North-South (EntryPoint `websecure` :8443):** Escucha en el AWS NLB público, aplica filtros WAF perimetrales, rate limiting y termina TLS con certificados públicos corporativos.
-* **Entrada East-West (EntryPoint `internal-secure` :9443):** Escucha en un Service de tipo `ClusterIP` interno. Mediante DNS interno (CoreDNS / Split-Horizon), los pods dentro del clúster resuelven `api.empresa.com` directamente hacia la IP interna de Traefik.
-* **Diferenciación de Políticas Declarativas:** En la ruta interna, Traefik aplica autenticación mutua estricta (**mTLS con `RequireAndVerifyClientCert`**) contra la CA interna, inyecta cabeceras de identidad del llamante y enruta directamente al pod de destino **a velocidad de red local (Capa 3 OVN-Kubernetes)**.
+#### El Mito de "Modificar CoreDNS" en OpenShift: Por Qué Es Inviable para los Equipos de Aplicaciones
+Frecuentemente surge la duda: *¿Por qué no simplemente añadimos una entrada en CoreDNS para que `api.empresa.com` resuelva a una IP interna del clúster?*  
+En Red Hat OpenShift, **este planteamiento es un antipatrón inviable por diseño**:
+* **El OpenShift DNS Operator gobierna CoreDNS:** El ConfigMap `dns-default` en el namespace `openshift-dns` está gestionado activamente por el DNS Operator (`dns.operator.openshift.io`). Cualquier modificación manual a los Corefiles o plugins (e.g. `rewrite` o `hosts`) es revertida automáticamente por el operador en cuestión de segundos.
+* **Barrera de Privilegios RBAC (Falta de Autonomía):** La única vía soportada para declarar zonas en OpenShift es parchear el recurso de clúster `dnses.operator.openshift.io/default`. Esto requiere **privilegios de `cluster-admin`**. En organizaciones empresariales con decenas de equipos de desarrollo, los desarrolladores NO tienen ni deben tener permisos de administración de clúster; depender de tickets a soporte de infraestructura para registrar cada FQDN destruye la agilidad de entrega continua.
+* **El Riesgo Catastrófico de Split-Brain DNS:** Si se secuestra a nivel de clúster el dominio corporativo público `empresa.com`, cualquier Pod que legítimamente necesite acceder a recursos externos bajo ese dominio (portales corporativos externos, webhooks de terceros, proveedores de identidad OAuth/SAML en la nube) sufrirá caídas inmediatas de resolución.
 
-**Veredicto:** Los desarrolladores y SDKs consumen **un único FQDN universal** tanto desde fuera como desde dentro, garantizando contratos de API inalterables, **cero hairpinning, latencia mínima en submilisegundos y cero consumo de sidecars**.
+#### La Solución Elegante: Split-Horizon Ingress con Traefik y Gateway API
+En lugar de manipular DNS a nivel de infraestructura, **Split-Horizon Ingress** traslada el desacoplamiento directamente a la **Capa 7 de Ingress en Traefik**:
+Traefik permite enlazar el **mismo FQDN corporativo (`api.empresa.com`) a dos horizontes lógicos con políticas totalmente independientes**:
+* **Horizonte Exterior (North-South Ingress - EntryPoint `websecure` :8443):** Escucha en el AWS NLB público, aplica filtros WAF perimetrales, CORS para navegadores de internet, rate limiting y termina TLS con certificados públicos corporativos (Let's Encrypt / DigiCert / AWS ACM).
+* **Horizonte Interior (East-West Ingress - EntryPoint / Service `ClusterIP`):** Escucha en una dirección IP virtual privada del clúster (solo accesible dentro de la red SDN OVN-Kubernetes).
+
+#### ¿Cómo se Implementa el Enrutamiento Interno sin Tocar CoreDNS? (2 Patrones de Producción)
+1. **Patrón Recomendado: IngressRoute Interno + Middleware de Mutación de Cabeceras (`headers`):**
+   * El microservicio llamante utiliza el DNS nativo de clúster (`service-b.apps.cluster.local`), que CoreDNS resuelve sin configuración extra.
+   * El manifiesto `IngressRoute` interno ([`03-ingressroute-east-west.yaml`](./manifests/solution-a-traefik-crds/03-ingressroute-east-west.yaml)) captura la llamada y aplica el `Middleware` de tipo `headers` ([`02-middleware-security.yaml`](./manifests/solution-a-traefik-crds/02-middleware-security.yaml)): inyecta `Host: api.empresa.com` y `X-Forwarded-Host: api.empresa.com`.
+   * El backend recibe la petición con el FQDN canónico esperado para validar tokens JWT y CORS, mientras que el `TLSOption` ejecuta mTLS estricto (`RequireAndVerifyClientCert`) y el middleware `ipAllowList` protege la red. Todo a velocidad de cable local, sin salir a AWS y sin tocar CoreDNS.
+2. **Patrón para Aplicaciones Rígidas: Inyección de `spec.hostAliases` a Nivel de Pod (Cero Privilegios):**
+   * Si el código fuente o SDK de la aplicación cliente tiene la URL pública `https://api.empresa.com` codificada en duro y no puede alterarse:
+   * El equipo de desarrollo añade en su propio manifiesto `Deployment` (sin requerir permisos de `cluster-admin`):
+     ```yaml
+     spec:
+       template:
+         spec:
+           hostAliases:
+             - ip: "172.30.150.10" # ClusterIP del Service interno de Traefik
+               hostnames:
+                 - "api.empresa.com"
+     ```
+   * Kubernetes inyecta esta resolución en el `/etc/hosts` local del contenedor en su arranque. Cuando el microservicio invoca `https://api.empresa.com`, el resolver local del Pod lo envía directamente al `ClusterIP` interno de Traefik.
+   * Traefik recibe la llamada en su horizonte interno, valida el mTLS con `strict-mtls-option`, aplica los Middlewares y entrega el tráfico al pod backend en la red OVN-Kubernetes.
+
+**Veredicto:** Arquitectura **Split-Horizon Ingress** limpia: el clúster preserva **un único FQDN canónico**, garantizando contratos de API inalterables, **cero hairpinning hacia AWS, latencia en submilisegundos, cero dependencias del operador de DNS de OpenShift y cero consumo de memoria por sidecars**.
 
 ---
 
