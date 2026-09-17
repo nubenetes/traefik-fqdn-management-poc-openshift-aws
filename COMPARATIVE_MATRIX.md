@@ -49,9 +49,9 @@ flowchart TD
 
     D3("<b>Step 3: Multi-Tenancy & RBAC</b><br/>Is strict Platform Admin vs. App Dev<br/>persona separation mandatory?")
 
-    SolB["<b>Solution B: Gateway API</b><br/>• CNCF standard v1.x across clouds<br/>• Gateway vs. HTTPRoute boundaries<br/>• Zero vendor lock-in; future-proof"]
+    SolB["<b>Solution B: Gateway API</b><br/>• CNCF standard v1.x<br/>• Tri-persona RBAC boundaries<br/>• Zero vendor lock-in"]
 
-    SolA["<b>Solution A: Traefik CRDs</b><br/>• Battle-tested IngressRoute CRDs<br/>• High delivery velocity for teams<br/>• Dynamic in-memory configuration"]
+    SolA["<b>Solution A: Traefik CRDs</b><br/>• Battle-tested IngressRoutes<br/>• High velocity for teams<br/>• Dynamic Go hot-reloads"]
 
     Start --> D1
     D1 -->|"Yes: Basic"| NativeRoute
@@ -63,10 +63,15 @@ flowchart TD
     D3 -->|"Yes: Strict RBAC"| SolB
     D3 -->|"No: Unified Tooling"| SolA
 
+    SolB ~~~ PadB[" "]
+    SolA ~~~ PadA[" "]
+
     classDef decision fill:#f3f0ff,stroke:#7c3aed,stroke-width:2px;
     classDef outcome fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px;
     class D1,D2,D3 decision;
     class NativeRoute,SolA,SolB outcome;
+    style PadA fill:none,stroke:none;
+    style PadB fill:none,stroke:none;
 ```
 
 ### Heuristic 1: Choose Solution B (Gateway API) When:
