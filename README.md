@@ -22,42 +22,47 @@
   <img src="https://img.shields.io/badge/Context-://github.com/nubenetes-8A2BE2?style=flat-square&logo=git&logoColor=white" alt="Repo Context"/>
 </p>
 
-<p align="center">
-  <img src="./assets/traefik_openshift_advanced_fqdn_architecture.jpg" alt="Traefik Proxy & Gateway API on Red Hat OpenShift: Advanced FQDN & Traffic Management Architecture Infographic" width="100%"/>
-</p>
+---
 
-### 🧭 Architectural Infographic Breakdown
+## 📑 Table of Contents
 
-The visual infographic above provides an executive architecture overview of the entire reference implementation. Below is the structured breakdown of each core component, traffic flow, and decision heuristic illustrated:
-
-* **1. The OpenShift Routing Dilemma & HAProxy Router Bypass:**
-  * **The Challenge:** OpenShift's native router (HAProxy) is optimal for basic web applications under the `*.apps` wildcard, but exhibits operational friction when handling sub-second dynamic route propagation, multi-tenant RBAC boundary segregation, and East-West intra-cluster mutual TLS (mTLS).
-  * **Direct Router Bypass:** By binding the AWS Network Load Balancer (NLB) directly to Traefik Proxy's `LoadBalancer` Service, the architecture eliminates double-proxy hop latency and prevents HAProxy configuration reload events (`haproxy -f ...`) under high traffic volumes.
-  * **Non-Root & Security Context Constraints (SCC):** Traefik runs entirely unprivileged under non-root UID `65532` in strict compliance with OpenShift's `restricted-v2` SCC, binding internally to unprivileged ports (`8000/8443`) mapped to external standard ports (`80/443`) by the AWS NLB.
-
-* **2. North-South Traffic Flow (Edge to Workload):**
-  * **Automated DNS & Edge Resolution:** The ExternalDNS operator monitors annotations on Ingress resources, synchronizing AWS Route 53 Alias A-records with the AWS NLB within 60 seconds with zero manual ticketing.
-  * **Layer 4 TCP Ingestion (PROXY Protocol v2):** The AWS NLB operates at Layer 4 and injects PROXY protocol v2 headers into the TCP stream, ensuring downstream pods receive true client source IPs.
-  * **Dual Ingress Engine Comparison:**
-    * **Solution A (Traefik CRDs):** Evaluates `IngressRoute` and `Middleware` CRDs directly in memory, delivering sub-second hot-reloads and advanced pipeline chaining (HSTS, CSP, CORS, custom header manipulation).
-    * **Solution B (Gateway API):** Implements the CNCF standard (`GatewayClass`, `Gateway`, `HTTPRoute`), separating infrastructure lifecycle from application developer routing rules with cross-namespace selector delegation.
-
-* **3. East-West Traffic & Zero-Trust Architecture (Internal Horizon):**
-  * **Cryptographic mTLS Enforcement:** Enforces strict TLS 1.3 mutual authentication (`clientAuthType: RequireAndVerifyClientCert`) validated against internal corporate Root CAs without injecting sidecar proxies.
-  * **Anti-Spoofing & Network Perimeter Validation:** Traefik verifies that the TLS Server Name Indication (SNI) matches the HTTP `Host` header, while the `ipAllowList` middleware ensures callers originate strictly from within the OpenShift OVN-Kubernetes pod network (`10.128.0.0/14`) and VPC subnets (`10.0.0.0/16`).
-  * **Internal FQDN Routing vs. Ephemeral Pod IPs:** Internal callers target stable in-cluster FQDNs (e.g., `service-b.traefik-crd-poc.svc.cluster.local`), avoiding fragile pod IP tracking and establishing centralized access logging.
-  * **Declarative Upstream Trust Anchoring:** Solution A pins backend identities via `ServersTransport`; Solution B standardizes upstream pod TLS validation via the Gateway API `BackendTLSPolicy` (`gateway.networking.k8s.io/v1alpha3`).
-
-* **4. Comparative Matrix & Ingress Decision Flow:**
-  * **Native OpenShift Routes (1. Native Fit):** Best for day-1 basic web workloads utilizing the cluster wildcard (`*.apps`) where zero additional controller overhead is the priority.
-  * **Traefik CRDs (Solution A / 3. Velocity):** Best for unified engineering teams seeking battle-tested middleware pipelines, rapid delivery velocity, and sub-second in-memory configuration updates.
-  * **Kubernetes Gateway API (Solution B / 2. Portability & RBAC):** Best for multi-cloud parity (OpenShift, AWS EKS, Google GKE), strict RBAC separation between Platform Admins and App Developers, and long-term CNCF standardization.
+- [Executive Summary](#executive-summary)
+- [Repository Overview Tags & Technical Taxonomy](#repository-overview-tags--technical-taxonomy)
+- [Repository Structure & Direct Navigation](#repository-structure)
+  - [Directory Tree](#directory-tree)
+  - [Direct File & Manifest Navigation](#direct-file--manifest-navigation)
+- [North-South Traffic Flow (Edge to Workload)](#north-south-traffic-flow-edge-to-workload)
+  - [North-South Architecture Diagram](#north-south-architecture-diagram)
+  - [Hop-by-Hop North-South Mechanics Breakdown](#hop-by-hop-north-south-mechanics-breakdown)
+  - [Architectural Deep-Dive: HAProxy Router Bypass & PROXY Protocol v2](#architectural-deep-dive-haproxy-router-bypass--proxy-protocol-v2)
+- [East-West Traffic Flow & Mutual TLS (mTLS)](#east-west-traffic-flow--mutual-tls-mtls)
+  - [East-West Architecture Diagram](#east-west-architecture-diagram)
+  - [Hop-by-Hop East-West & mTLS Mechanics Breakdown](#hop-by-hop-east-west--mtls-mechanics-breakdown)
+  - [Architectural Deep-Dive: Split-Horizon Ingress vs. CoreDNS Immutability](#architectural-deep-dive-split-horizon-ingress-vs-coredns-immutability)
+  - [Zero-Sidecar Efficiency vs. Service Mesh Overhead](#zero-sidecar-efficiency-vs-service-mesh-overhead)
+- [Production Deployment Steps (OpenShift CLI `oc`)](#production-deployment-steps-openshift-cli-oc)
+  - [Step 1: Clone Repository & Login to OpenShift](#step-1-clone-repository--login-to-openshift)
+  - [Step 2: Provision Namespaces, RBAC, and OpenShift SCCs](#step-2-provision-namespaces-rbac-and-openshift-sccs)
+  - [Step 3: Deploy Mock Workloads and TLS Certificates](#step-3-deploy-mock-workloads-and-tls-certificates)
+  - [Step 4: Deploy Traefik Proxy v3.0+ Controller & AWS NLB](#step-4-deploy-traefik-proxy-v30-controller--aws-nlb)
+  - [Step 5: Deploy Solution A (Traefik CRD Stack)](#step-5-deploy-solution-a-traefik-crd-stack)
+  - [Step 6: Deploy Solution B (Kubernetes Gateway API Stack)](#step-6-deploy-solution-b-kubernetes-gateway-api-stack)
+- [Validation & Verification Testing](#validation--verification-testing)
+  - [1. Validating North-South HTTP to HTTPS Redirection](#1-validating-north-south-http-to-https-redirection)
+  - [2. Validating Solution A (Traefik CRDs) HTTPS Route & Security Headers](#2-validating-solution-a-traefik-crds-https-route--security-headers)
+  - [3. Validating Solution B (Gateway API) Native Header Filters & Rewrites](#3-validating-solution-b-gateway-api-native-header-filters--rewrites)
+  - [4. Validating East-West Mutual TLS (mTLS) Enforcement](#4-validating-east-west-mutual-tls-mtls-enforcement)
+- [Architectural Comparison & Ingress Decision Flow](#architectural-comparison--ingress-decision-flow)
+  - [Architecture Decision Flowchart](#architecture-decision-flowchart)
+  - [Comparative Analysis & Multi-Cloud Linkage](#comparative-analysis--multi-cloud-linkage)
+- [🧭 Architectural Infographic & Holistic System Map](#-architectural-infographic--holistic-system-map)
+  - [Holistic Architectural Blueprint Breakdown](#holistic-architectural-blueprint-breakdown)
 
 ---
 
 ## Executive Summary
 
-This enterprise Proof of Concept (PoC) repository—hosted under the organization path `https://github.com/nubenetes` (repository reference: `://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws`)—establishes a reference architecture for advanced Fully Qualified Domain Name (FQDN) management, automated edge routing, and zero-trust microservice communication within **Red Hat OpenShift Container Platform v4.14+ (ROSA / self-managed OCP on AWS)**.
+This enterprise Proof of Concept (PoC) repository—hosted under the organization path `https://github.com/nubenetes` (repository reference: `://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws`)—establishes an end-to-end reference architecture for advanced Fully Qualified Domain Name (FQDN) management, automated edge routing, and zero-trust microservice communication within **Red Hat OpenShift Container Platform v4.14+ (ROSA / self-managed OCP on AWS)**.
 
 In mission-critical enterprise environments, default platform routing constructs often struggle to address the convergence of hybrid cloud domain delegation, sub-second route propagation without proxy reload overhead, multi-tenant RBAC boundaries, and East-West mutual TLS (mTLS) enforcement. This PoC implements and benchmark-tests two production-grade architectures:
 
@@ -65,6 +70,12 @@ In mission-critical enterprise environments, default platform routing constructs
 2. **Solution B (Kubernetes Gateway API Stack):** A forward-looking, standardized architecture implementing the official Kubernetes Gateway API specification (`GatewayClass`, `Gateway`, `HTTPRoute`, `BackendTLSPolicy`) driven by Traefik v3.0+'s native gateway controller.
 
 Both solutions are integrated with **AWS Route 53** via automated ExternalDNS synchronization, terminate high-throughput edge traffic on **AWS Network Load Balancers (NLB)** with PROXY protocol v2, and strictly adhere to Red Hat OpenShift's default `restricted-v2` Security Context Constraints (SCC).
+
+> [!NOTE]
+> **Key Architecture Highlights:**
+> - **Zero HAProxy Reloads:** Directly bypassing OpenShift's default router eliminates reload serialization and CPU spikes during high-frequency route deployments.
+> - **Split-Horizon Ingress:** Internal microservices resolve internal FQDNs with end-to-end TLS 1.3 cryptographic validation without modifying immutable OpenShift CoreDNS configurations.
+> - **Sidecar-Less Zero-Trust:** Achieves mutual TLS (mTLS) and micro-segmentation without the memory, CPU, and latency overhead of injecting Envoy sidecars into every pod.
 
 ---
 
@@ -84,12 +95,16 @@ The repository is tagged and indexed with the following domain taxonomy:
 
 ## Repository Structure
 
+### Directory Tree
+
 ```
 .
 ├── README.md                                    # Architectural specification & deployment guide
 ├── COMPARATIVE_MATRIX.md                        # Deep-dive comparative matrix & OpenShift dilemma analysis
 ├── LINKEDIN_NEWSLETTER_ES.md                    # Análisis e informe profundo para LinkedIn Newsletter (Español)
 ├── LINKEDIN_NEWSLETTER_EN.md                    # Executive architecture & Ingress report for LinkedIn Newsletter (English)
+├── assets/
+│   └── traefik_openshift_advanced_fqdn_architecture.jpg # High-resolution architecture blueprint infographic
 └── manifests/
     ├── common/
     │   ├── 00-namespaces-rbac-scc.yaml         # Namespaces, ServiceAccounts, RBAC, and SCC bindings
@@ -106,7 +121,7 @@ The repository is tagged and indexed with the following domain taxonomy:
         └── 04-httproute-east-west.yaml         # East-West HTTPRoute with BackendTLSPolicy mTLS enforcement
 ```
 
-### Direct File & Directory Navigation
+### Direct File & Manifest Navigation
 
 - 📄 [**COMPARATIVE_MATRIX.md**](./COMPARATIVE_MATRIX.md) — Comprehensive comparative matrix & OpenShift dilemma analysis
 - 📰 [**LINKEDIN_NEWSLETTER_ES.md**](./LINKEDIN_NEWSLETTER_ES.md) — Edición especial de análisis arquitectónico para LinkedIn Newsletter (Español)
@@ -124,7 +139,6 @@ The repository is tagged and indexed with the following domain taxonomy:
   - [`02-gateway-aws.yaml`](./manifests/solution-b-gateway-api/02-gateway-aws.yaml) — AWS NLB Gateway & listeners
   - [`03-httproute-north-south.yaml`](./manifests/solution-b-gateway-api/03-httproute-north-south.yaml) — Edge HTTPRoute with native filters
   - [`04-httproute-east-west.yaml`](./manifests/solution-b-gateway-api/04-httproute-east-west.yaml) — East-West HTTPRoute & BackendTLSPolicy
-
 
 ---
 
@@ -194,6 +208,14 @@ flowchart TD
    - **Solution A (Traefik CRDs):** Traefik evaluates the incoming HTTP `Host` header and TLS SNI against `IngressRoute.spec.routes[].match` rules (e.g., `Host('api.company.com') && PathPrefix('/api')`). If matched, Traefik applies the chained `Middleware` CRDs (`middleware-security-headers`, `middleware-forwarded-host-mutation`) to inject HSTS headers, mutate `X-Forwarded-Host`, enforce CORS, and route to `service-b`.
    - **Solution B (Gateway API):** Traefik evaluates the `Gateway`'s listeners (`hostname: "*.company.com"`). The matched listener delegates routing decisions to attached `HTTPRoute` resources in permitted namespaces (`allowedRoutes.namespaces.from: Selector`). Standardized filters (`RequestHeaderModifier`, `ResponseHeaderModifier`, `URLRewrite`) execute in memory, modifying request/response headers natively without requiring custom controller-specific CRDs.
 
+### Architectural Deep-Dive: HAProxy Router Bypass & PROXY Protocol v2
+
+> [!IMPORTANT]
+> **Why Bypass OpenShift's Native HAProxy Router?**
+> - **The Reload Serialization Bottleneck:** OpenShift's native `IngressController` manages an underlying HAProxy process. Whenever an application team deploys, updates, or deletes an OpenShift `Route`, the router operator triggers a configuration reload (`haproxy -f ...`). In enterprise clusters with high-frequency GitOps deployments (e.g., hundreds of canary rollouts per day), frequent reloads serialize reload locks, spike CPU usage, and can cause dropped TCP SYN packets or transient 503 errors.
+> - **In-Memory Configuration Updates in Traefik:** Traefik Proxy is written in Go and utilizes an internal dynamic configuration ring buffer. Route updates from Kubernetes CRDs or Gateway API resources are applied dynamically in memory within milliseconds, with zero process restarts, zero socket handovers, and zero dropped connections.
+> - **L4 PROXY Protocol v2 Ingestion:** Operating the AWS NLB in Layer 4 TCP pass-through with PROXY protocol v2 preserves the client's actual IP address across AWS VPC NAT boundaries. Traefik parses the PROXY header and populates standard HTTP headers (`X-Forwarded-For`, `X-Real-IP`), enabling strict Layer 7 security policies, geo-fencing, and auditing without requiring costly L7 Application Load Balancers (ALB).
+
 ---
 
 ## East-West Traffic Flow & Mutual TLS (mTLS)
@@ -256,6 +278,29 @@ flowchart TD
 4. **Zero-Trust Backend Encryption (Traefik to Upstream Pod):**
    - **Solution A (`ServersTransport`):** Traefik initiates an encrypted HTTPS connection to `service-b:8443`. It validates the backend pod's certificate against `internal-ca-secret` and verifies that the certificate's Subject Alternative Name (SAN) matches `service-b.apps.cluster.local`.
    - **Solution B (`BackendTLSPolicy`):** Gateway API's declarative `BackendTLSPolicy` configures Traefik to enforce strict TLS verification against `service-b`, anchoring trust directly to `internal-ca-secret` and rejecting any untrusted upstream endpoint.
+
+### Architectural Deep-Dive: Split-Horizon Ingress vs. CoreDNS Immutability
+
+> [!CAUTION]
+> **The OpenShift CoreDNS Immutability Dilemma:**
+> In Red Hat OpenShift and ROSA clusters, the internal CoreDNS deployment is owned and actively reconciled by the OpenShift DNS Operator (`dns.operator.openshift.io`).
+> - **Operator Reversion:** Directly modifying the `dns-default` ConfigMap is an anti-pattern; the DNS operator detects out-of-band modifications and reverts them automatically within seconds.
+> - **RBAC Privilege Barriers:** Customizing DNS zones via `dnses.operator.openshift.io/default` requires `cluster-admin` privileges, which are strictly forbidden to tenant application developers.
+> - **Split-Brain DNS Risk:** Injecting cluster-wide overrides for corporate domains (`company.com`) risks hijacking public subdomains, causing cluster-wide outages for external API dependencies.
+
+**The Traefik Split-Horizon Ingress Solution:**
+Instead of modifying cluster DNS infrastructure, this architecture decouples traffic into two Layer 7 horizons:
+1. **Internal Horizon Listener:** Traefik binds a dedicated internal listener on port `8443`. Intra-cluster microservices communicate using native service FQDNs (`service-b.traefik-crd-poc.svc.cluster.local`) or cluster conventions (`service-b.apps.cluster.local`). Traefik validates TLS certificates, verifies SNI, and executes header rewrites via `middleware-forwarded-host-mutation` ([`02-middleware-security.yaml`](./manifests/solution-a-traefik-crds/02-middleware-security.yaml)).
+2. **Zero-Privilege Pod `hostAliases`:** For applications with hardcoded external domains (`api.company.com`), development teams add `spec.hostAliases` to their own pod `Deployment` spec, directing the public FQDN directly to Traefik's internal `ClusterIP`. This eliminates external hairpinning to the AWS NLB (saving 15–40ms latency and AWS cross-AZ data egress fees) with zero operator changes and zero cluster-admin privileges.
+
+### Zero-Sidecar Efficiency vs. Service Mesh Overhead
+
+> [!TIP]
+> **Sidecar-Less Architecture Savings:**
+> Traditional Zero-Trust architectures mandate installing a Service Mesh (e.g., Red Hat OpenShift Service Mesh / Istio), injecting an Envoy sidecar proxy into every application pod.
+> - **Resource Penalty:** In a 500-pod cluster, allocating 100 MB RAM and 0.1 vCPU per Envoy sidecar consumes **50 GB of RAM** and **50 vCPUs** solely for sidecar routing.
+> - **Latency Penalty:** Sidecars introduce 2 extra serialization hops per connection (Pod -> Client Sidecar -> Server Sidecar -> Pod), increasing p99 tail latency.
+> - **Operational Simplicity:** Traefik Proxy provides centralized Layer 7 mTLS verification (`RequireAndVerifyClientCert`), upstream pod validation (`ServersTransport` / `BackendTLSPolicy`), and granular access logs **with zero sidecars**.
 
 ---
 
@@ -411,6 +456,8 @@ oc exec -n traefik-crd-poc "${CLIENT_POD}" -- \
 
 To guide platform engineering teams on whether to adopt Traefik CRDs (Solution A), Kubernetes Gateway API (Solution B), or stick with Native OpenShift Routes, evaluate the following architecture decision framework:
 
+### Architecture Decision Flowchart
+
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 460, "nodePadding": 34, "diagramPadding": 35}}}%%
 flowchart TD
@@ -449,6 +496,51 @@ flowchart TD
     style PadB fill:none,stroke:none;
 ```
 
+### Comparative Analysis & Multi-Cloud Linkage
+
+| Architectural Capability | Solution A: Traefik CRDs (`IngressRoute`) | Solution B: Gateway API (`Gateway` / `HTTPRoute`) | Native OpenShift Routes (HAProxy) |
+| :--- | :--- | :--- | :--- |
+| **Industry Standard** | Proprietary to Traefik Proxy | CNCF Kubernetes De Jure Standard | Red Hat OpenShift Proprietary |
+| **Portability Across Clouds** | Low (Traefik-specific manifests) | **100% Portable (EKS, GKE, OCP, AKS)** | Zero outside OpenShift |
+| **RBAC / Persona Segregation** | Flat / Shared CRD ownership | **Strict Tri-Persona Role Separation** | Project-scoped only |
+| **Dynamic Configuration** | In-Memory Sub-Second Hot Reload | In-Memory Sub-Second Hot Reload | HAProxy Process Reload (`-f`) |
+| **East-West mTLS** | Native `TLSOption` & `ServersTransport` | Declarative `BackendTLSPolicy` (v1alpha3) | Requires Red Hat Service Mesh (Istio) |
+| **Sidecar Overhead** | **0 Sidecars** (Centralized Gateway) | **0 Sidecars** (Centralized Gateway) | 1 Envoy sidecar per pod (Mesh mode) |
+
 For an exhaustive architectural matrix comparing **Traefik CRDs**, **Kubernetes Gateway API**, and **Native OpenShift Routes (HAProxy)** across security, multi-tenancy, AWS integration, and performance — including our **Multi-Cloud Companion Case Study on Feature-Flagged FQDN & East-West Security in GKE ([jenkins-2026](https://github.com/nubenetes/jenkins-2026))** — see:  
 👉 [**COMPARATIVE_MATRIX.md**](./COMPARATIVE_MATRIX.md)
 
+---
+
+## 🧭 Architectural Infographic & Holistic System Map
+
+<p align="center">
+  <img src="./assets/traefik_openshift_advanced_fqdn_architecture.jpg" alt="Traefik Proxy & Gateway API on Red Hat OpenShift: Advanced FQDN & Traffic Management Architecture Infographic" width="100%"/>
+</p>
+
+### Holistic Architectural Blueprint Breakdown
+
+The visual infographic above provides an executive architecture overview of the entire reference implementation. Below is the structured breakdown of each core component, traffic flow, and decision heuristic illustrated:
+
+* **1. The OpenShift Routing Dilemma & HAProxy Router Bypass:**
+  * **The Challenge:** OpenShift's native router (HAProxy) is optimal for basic web applications under the `*.apps` wildcard, but exhibits operational friction when handling sub-second dynamic route propagation, multi-tenant RBAC boundary segregation, and East-West intra-cluster mutual TLS (mTLS).
+  * **Direct Router Bypass:** By binding the AWS Network Load Balancer (NLB) directly to Traefik Proxy's `LoadBalancer` Service, the architecture eliminates double-proxy hop latency and prevents HAProxy configuration reload events (`haproxy -f ...`) under high traffic volumes.
+  * **Non-Root & Security Context Constraints (SCC):** Traefik runs entirely unprivileged under non-root UID `65532` in strict compliance with OpenShift's `restricted-v2` SCC, binding internally to unprivileged ports (`8000/8443`) mapped to external standard ports (`80/443`) by the AWS NLB.
+
+* **2. North-South Traffic Flow (Edge to Workload):**
+  * **Automated DNS & Edge Resolution:** The ExternalDNS operator monitors annotations on Ingress resources, synchronizing AWS Route 53 Alias A-records with the AWS NLB within 60 seconds with zero manual ticketing.
+  * **Layer 4 TCP Ingestion (PROXY Protocol v2):** The AWS NLB operates at Layer 4 and injects PROXY protocol v2 headers into the TCP stream, ensuring downstream pods receive true client source IPs.
+  * **Dual Ingress Engine Comparison:**
+    * **Solution A (Traefik CRDs):** Evaluates `IngressRoute` and `Middleware` CRDs directly in memory, delivering sub-second hot-reloads and advanced pipeline chaining (HSTS, CSP, CORS, custom header manipulation).
+    * **Solution B (Gateway API):** Implements the CNCF standard (`GatewayClass`, `Gateway`, `HTTPRoute`), separating infrastructure lifecycle from application developer routing rules with cross-namespace selector delegation.
+
+* **3. East-West Traffic & Zero-Trust Architecture (Internal Horizon):**
+  * **Cryptographic mTLS Enforcement:** Enforces strict TLS 1.3 mutual authentication (`clientAuthType: RequireAndVerifyClientCert`) validated against internal corporate Root CAs without injecting sidecar proxies.
+  * **Anti-Spoofing & Network Perimeter Validation:** Traefik verifies that the TLS Server Name Indication (SNI) matches the HTTP `Host` header, while the `ipAllowList` middleware ensures callers originate strictly from within the OpenShift OVN-Kubernetes pod network (`10.128.0.0/14`) and VPC subnets (`10.0.0.0/16`).
+  * **Internal FQDN Routing vs. Ephemeral Pod IPs:** Internal callers target stable in-cluster FQDNs (e.g., `service-b.traefik-crd-poc.svc.cluster.local`), avoiding fragile pod IP tracking and establishing centralized access logging.
+  * **Declarative Upstream Trust Anchoring:** Solution A pins backend identities via `ServersTransport`; Solution B standardizes upstream pod TLS validation via the Gateway API `BackendTLSPolicy` (`gateway.networking.k8s.io/v1alpha3`).
+
+* **4. Comparative Matrix & Ingress Decision Heuristics:**
+  * **Native OpenShift Routes (1. Native Fit):** Best for day-1 basic web workloads utilizing the cluster wildcard (`*.apps`) where zero additional controller overhead is the priority.
+  * **Traefik CRDs (Solution A / 3. Velocity):** Best for unified engineering teams seeking battle-tested middleware pipelines, rapid delivery velocity, and sub-second in-memory configuration updates.
+  * **Kubernetes Gateway API (Solution B / 2. Portability & RBAC):** Best for multi-cloud parity (OpenShift, AWS EKS, Google GKE), strict RBAC separation between Platform Admins and App Developers, and long-term CNCF standardization.
