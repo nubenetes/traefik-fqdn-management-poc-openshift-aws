@@ -38,21 +38,20 @@ The following deep-dive matrix contrasts Solution A, Solution B, and Native Open
 Selecting between Traefik CRDs (Solution A) and Gateway API (Solution B) requires evaluating organization maturity, infrastructure roadmap, and operational tooling.
 
 ```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 220}}}%%
 flowchart TD
-    Start(["<b>Ingress Architecture Decision Flow</b><br/>Red Hat OpenShift 4.14+ (AWS)"])
+    Start(["<b>Ingress Architecture Decision Flow</b><br/>Red Hat OpenShift 4.14+ on AWS"])
 
-    D1{{"<b>Criterion 1: OpenShift Native Fit</b><br/>Do basic OpenShift Routes satisfy all<br/>ingress, FQDN, and security needs?"}}
+    D1("<b>Step 1: OpenShift Native Fit</b><br/>Do standard OpenShift Routes satisfy<br/>all ingress, FQDN & security needs?")
 
-    NativeRoute["<b>Use Native OpenShift Routes</b><br/>• Out-of-the-box Ingress Operator<br/>• Zero additional controller overhead<br/>• Default *.apps.cluster wildcard"]
+    NativeRoute["<b>Use Native OpenShift Routes</b><br/>• Out-of-the-box Ingress Operator<br/>• Zero extra controller overhead<br/>• Default *.apps wildcard domain"]
 
-    D2{{"<b>Criterion 2: Multi-Cloud Parity</b><br/>Is portability across AWS EKS, GKE,<br/>or on-prem Kubernetes required?"}}
+    D2("<b>Step 2: Multi-Cloud Parity</b><br/>Is cross-platform portability across<br/>AWS EKS, GKE, or On-Prem required?")
 
-    D3{{"<b>Criterion 3: Multi-Tenancy & RBAC</b><br/>Is strict Platform Admin vs. App Dev<br/>persona separation mandatory?"}}
+    D3("<b>Step 3: Multi-Tenancy & RBAC</b><br/>Is strict Platform Admin vs. App Dev<br/>persona separation mandatory?")
 
     SolB["<b>Solution B: Gateway API</b><br/>• CNCF standard v1.x across clouds<br/>• Gateway vs. HTTPRoute boundaries<br/>• Zero vendor lock-in; future-proof"]
 
-    SolA["<b>Solution A: Traefik CRDs</b><br/>• Battle-tested IngressRoute CRDs<br/>• High delivery velocity for teams<br/>• Zero-reload dynamic routing"]
+    SolA["<b>Solution A: Traefik CRDs</b><br/>• Battle-tested IngressRoute CRDs<br/>• High delivery velocity for teams<br/>• Dynamic in-memory configuration"]
 
     Start --> D1
     D1 -->|"Yes: Basic"| NativeRoute
@@ -63,6 +62,11 @@ flowchart TD
 
     D3 -->|"Yes: Strict RBAC"| SolB
     D3 -->|"No: Unified Tooling"| SolA
+
+    classDef decision fill:#f3f0ff,stroke:#7c3aed,stroke-width:2px;
+    classDef outcome fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px;
+    class D1,D2,D3 decision;
+    class NativeRoute,SolA,SolB outcome;
 ```
 
 ### Heuristic 1: Choose Solution B (Gateway API) When:
@@ -90,22 +94,21 @@ Stick with native OpenShift Routes if your workloads satisfy the following crite
 ### When Bypassing OpenShift Routes for Traefik Becomes Strictly Necessary
 
 ```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 260}}}%%
 flowchart LR
-    subgraph OpenShift_Limits ["Native OpenShift Routes (HAProxy) Architectural Limitations"]
+    subgraph Limits ["Native OpenShift Limitations"]
         direction TB
-        L1["<b>Dynamic Reload Penalties</b><br/>Config map sync delays & HAProxy process reload events during route or certificate churn"]
-        L2["<b>Coarse-Grained TLS Options</b><br/>Pass-through or edge-only termination; lacks per-route client CA validation (mTLS)"]
-        L3["<b>Restricted Header Mutations</b><br/>Requires raw HAProxy template snippets frequently disabled by enterprise SecOps"]
-        L4["<b>Protocol Constraints</b><br/>No native HTTP/3 (QUIC) support or advanced gRPC stream multiplexing"]
+        L1["<b>Dynamic Reload Penalties</b><br/>Config map sync delays & HAProxy process<br/>reload events during route/cert churn"]
+        L2["<b>Coarse-Grained TLS Options</b><br/>Pass-through or edge-only termination;<br/>lacks per-route client CA validation (mTLS)"]
+        L3["<b>Restricted Header Mutations</b><br/>Requires raw HAProxy template snippets<br/>frequently disabled by enterprise SecOps"]
+        L4["<b>Protocol Constraints</b><br/>No native HTTP/3 (QUIC) support<br/>or advanced gRPC stream multiplexing"]
     end
 
-    subgraph Traefik_Solutions ["Traefik Proxy v3.0+ Enterprise Ingress Capabilities"]
+    subgraph Solutions ["Traefik Proxy v3.0+ Ingress"]
         direction TB
-        S1["<b>Sub-Second In-Memory Hot-Swapping</b><br/>Zero reload penalties, zero dropped connections, dynamic Go concurrent routing table"]
-        S2["<b>Strict Zero-Trust mTLS</b><br/>Declarative ClientAuth verification per route via TLSOption & Gateway API BackendTLSPolicy"]
-        S3["<b>Declarative Security Pipelines</b><br/>Native Middlewares & standard filters for HSTS, CORS whitelists, and CIDR IP allowlists"]
-        S4["<b>Next-Gen Cloud Protocols</b><br/>First-class native support for HTTP/3, QUIC, gRPC, and WebSockets out-of-the-box"]
+        S1["<b>Sub-Second In-Memory Hot-Swapping</b><br/>Zero reload penalties, zero dropped connections,<br/>dynamic Go concurrent routing table"]
+        S2["<b>Strict Zero-Trust mTLS</b><br/>Declarative ClientAuth verification per route<br/>via TLSOption & Gateway API BackendTLSPolicy"]
+        S3["<b>Declarative Security Pipelines</b><br/>Native Middlewares & standard filters<br/>for HSTS, CORS whitelists, and CIDR allowlists"]
+        S4["<b>Next-Gen Cloud Protocols</b><br/>First-class native support for HTTP/3, QUIC,<br/>gRPC, and WebSockets out-of-the-box"]
     end
 
     L1 ==>|"Solved by"| S1
