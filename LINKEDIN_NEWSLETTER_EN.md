@@ -3,6 +3,8 @@
 *Special Cloud-Native Architecture & Platform Engineering Edition*  
 **Official GitHub Repository:** 👉 [**nubenetes/traefik-fqdn-management-poc-openshift-aws**](https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws)
 
+![LinkedIn Newsletter Cover](./assets/linkedin_newsletter_cover.jpg)
+
 ---
 
 ## 📌 Introduction: The Enterprise Ingress Scalability Wall in OpenShift

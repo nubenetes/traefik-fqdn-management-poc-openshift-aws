@@ -3,6 +3,8 @@
 *Edición Especial de Arquitectura Cloud-Native & Platform Engineering*  
 **Repositorio Oficial en GitHub:** 👉 [**nubenetes/traefik-fqdn-management-poc-openshift-aws**](https://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws)
 
+![LinkedIn Newsletter Cover](./assets/linkedin_newsletter_cover.jpg)
+
 ---
 
 ## 📌 Introducción: El Gran Cuello de Botella del Ingress en OpenShift
