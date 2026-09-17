@@ -101,54 +101,58 @@ North-South ingress handles external user requests entering the AWS cloud, trave
 
 ```mermaid
 flowchart TD
-    subgraph Internet ["Public Internet / Client Layer"]
-        User(["Client Browser / Mobile App / API Consumer"])
+    subgraph Client_Layer ["1. Client & DNS Resolution Layer"]
+        User(["<b>Client Consumer</b><br/>Browser / Mobile / API"])
+        R53["<b>AWS Route 53 DNS</b><br/>• Hosted Zone: company.com<br/>• Dual-Stack Alias A-Record<br/>• Auto-synced via ExternalDNS"]
     end
 
-    subgraph AWS_Cloud ["AWS Cloud Infrastructure"]
-        R53["AWS Route 53 Hosted Zone<br/>(company.com / api.company.com)<br/>[Automated via ExternalDNS]"]
-        NLB["AWS Network Load Balancer (NLB L4)<br/>• Scheme: Internet-Facing<br/>• Protocol: TCP (80:8000, 443:8443)<br/>• PROXY Protocol v2 (Preserves Real IP)"]
+    subgraph AWS_Edge ["2. AWS Cloud Perimeter Layer"]
+        NLB["<b>AWS Network Load Balancer (NLB)</b><br/>• Scheme: Internet-Facing (L4 TCP)<br/>• Port Forwarding: 80:8000, 443:8443<br/>• PROXY Protocol v2 (Real IP)"]
     end
 
-    subgraph OpenShift_Cluster ["Red Hat OpenShift v4.14+ (ROSA)"]
-        subgraph Ingress_Tier ["Ingress Infrastructure Layer (Namespace: traefik-system)"]
-            Traefik["Traefik Proxy v3.0+ Controller Pods<br/>[SCC: restricted-v2 / non-root UID 65532]<br/>• EntryPoint 'web' (:8000)<br/>• EntryPoint 'websecure' (:8443)"]
+    subgraph Ingress_Core ["3. Ingress Infrastructure Tier (Namespace: traefik-system)"]
+        Traefik["<b>Traefik Proxy v3.0+ Controller</b><br/>• SCC: restricted-v2 (UID 65532)<br/>• EntryPoints: web (:8000), websecure (:8443)<br/>• Direct OpenShift Router Bypass"]
+    end
+
+    subgraph Routing_Engines ["4. Routing Policy & Evaluation Tier"]
+        direction TB
+
+        subgraph SolA_Flow ["Solution A: Traefik CRDs (traefik-crd-poc)"]
+            direction TB
+            IR_HTTP["<b>IngressRoute HTTP (:8000)</b><br/>• Host: company.com / api.company.com<br/>• Middleware: 301 HTTPS Redirect"]
+            IR_HTTPS["<b>IngressRoute HTTPS (:8443)</b><br/>• TLS Secret: production-tls-secret<br/>• TLSOption: strict-tls-options"]
+            MW["<b>Traefik Middlewares</b><br/>• HSTS 1-Year Preload & CSP<br/>• CORS Whitelist & X-Forwarded-Host"]
+            IR_HTTPS --> MW
         end
 
-        subgraph Solution_A ["Solution A Evaluation (Namespace: traefik-crd-poc)"]
-            IR_HTTP["IngressRoute (HTTP :8000)<br/>Host: company.com || api.company.com<br/>Middleware: redirect-scheme-https (301)"]
-            IR_HTTPS["IngressRoute (HTTPS :8443)<br/>Host: api.company.com / company.com<br/>TLS Secret: production-tls-secret<br/>TLSOption: strict-tls-options"]
-            MW["Middlewares Pipeline<br/>• HSTS (1 year + preload)<br/>• CORS Whitelist<br/>• Header Mutation: X-Forwarded-Host"]
-        end
-
-        subgraph Solution_B ["Solution B Evaluation (Namespace: traefik-gateway-poc)"]
-            GW["AWS Edge Gateway (Gateway API)<br/>Listeners: http-edge (:80), https-edge (:443)<br/>AllowedRoutes: Namespaces via Selector"]
-            HR_HTTP["HTTPRoute: North-South Redirect<br/>Filter: RequestRedirect (301 HTTPS)"]
-            HR_HTTPS["HTTPRoute: North-South HTTPS<br/>Hostnames: company.com, api.company.com<br/>Filters:<br/>• RequestHeaderModifier (X-Forwarded-Host)<br/>• ResponseHeaderModifier (HSTS/CORS/CSP)<br/>• URLRewrite (/portal -> /)"]
-        end
-
-        subgraph Workloads ["Target Workload Layer"]
-            ServiceB_A["Service-B (Backend Pods)<br/>Namespace: traefik-crd-poc"]
-            ServiceB_B["Service-B (Backend Pods)<br/>Namespace: traefik-gateway-poc"]
+        subgraph SolB_Flow ["Solution B: Gateway API (traefik-gateway-poc)"]
+            direction TB
+            GW["<b>AWS Edge Gateway</b><br/>• Listeners: http-edge, https-edge<br/>• AllowedRoutes: Namespace Selector"]
+            HR_HTTP["<b>HTTPRoute Redirect (:80)</b><br/>• Filter: RequestRedirect (301)"]
+            HR_HTTPS["<b>HTTPRoute App/API (:443)</b><br/>• Host: company.com, api.company.com<br/>• Filters: HeaderModifier, URLRewrite"]
+            GW --> HR_HTTP
+            GW --> HR_HTTPS
         end
     end
 
-    User -->|"1. DNS Query (company.com / api.company.com)"| R53
-    R53 -.->|"2. Resolves Dual-Stack Alias A-Record"| User
-    User -->|"3. TCP Handshake / HTTPS Request"| NLB
-    NLB -->|"4. L4 TCP Stream + PROXY Protocol v2"| Traefik
+    subgraph Workload_Tier ["5. Target Application Workloads"]
+        ServiceB_A["<b>Service-B Pods</b><br/>Namespace: traefik-crd-poc"]
+        ServiceB_B["<b>Service-B Pods</b><br/>Namespace: traefik-gateway-poc"]
+    end
 
-    Traefik -->|"Host match: Solution A"| IR_HTTP
-    IR_HTTP -->|"301 Moved Permanently"| User
-    Traefik -->|"Host match: Solution A"| IR_HTTPS
-    IR_HTTPS --> MW
-    MW --> ServiceB_A
+    User -->|"Query FQDN"| R53
+    R53 -.->|"Alias IP"| User
+    User -->|"HTTPS Request"| NLB
+    NLB -->|"TCP + PROXY v2"| Traefik
 
-    Traefik -->|"Host match: Solution B"| GW
-    GW --> HR_HTTP
-    HR_HTTP -->|"301 Moved Permanently"| User
-    GW --> HR_HTTPS
-    HR_HTTPS --> ServiceB_B
+    Traefik -->|"Host: company.com (CRD)"| IR_HTTP
+    IR_HTTP -->|"301 Redirect"| User
+    Traefik -->|"Host: api.company.com (CRD)"| IR_HTTPS
+    MW -->|"Forward Request"| ServiceB_A
+
+    Traefik -->|"Host: company.com (Gateway)"| GW
+    HR_HTTP -->|"301 Redirect"| User
+    HR_HTTPS -->|"Forward Request"| ServiceB_B
 ```
 
 ### Hop-by-Hop North-South Mechanics Breakdown
@@ -183,43 +187,46 @@ East-West traffic governs internal, secure communication between services across
 
 ```mermaid
 flowchart TD
-    subgraph Client_Tier ["Client Workload Tier"]
-        ServiceA["<b>Service-A Pod</b> (API Consumer Client)<br/>• Initiates in-cluster call to: service-b.apps.cluster.local<br/>• Presents X.509 Client Certificate signed by internal Root CA"]
+    subgraph Client_Tier ["1. Consumer Microservice Tier"]
+        ServiceA["<b>Service-A Pod (Client)</b><br/>• Internal Caller in OpenShift<br/>• Targets: service-b.apps.cluster.local<br/>• Presents internal Root CA Client Cert"]
     end
 
-    subgraph Ingress_Core ["Core Ingress & Mesh Data Plane (Namespace: traefik-system)"]
-        TraefikInternal["<b>Traefik Proxy v3.0+ Router</b><br/>• Internal Mesh Listener (:8443)<br/>• Cryptographic Handshake Termination"]
+    subgraph Ingress_Mesh ["2. Ingress & Mesh Data Plane (traefik-system)"]
+        TraefikInternal["<b>Traefik Proxy v3.0+ Router</b><br/>• Dedicated Internal Listener (:8443)<br/>• Terminates & Validates Client TLS"]
     end
 
-    subgraph Security_Validation ["Zero-Trust Cryptographic & Policy Engine"]
-        subgraph SolA_Security ["Solution A Engine (Traefik CRDs)"]
-            TLSOption["<b>Traefik TLSOption</b><br/>• Min TLS 1.3 / Modern Ciphers<br/>• RequireAndVerifyClientCert<br/>• CA Secret: internal-ca-secret"]
-            ST["<b>ServersTransport</b><br/>• Secure Upstream mTLS to Pod<br/>• Validates SAN: service-b.apps.cluster.local"]
-            MW_IP["<b>Middleware: IPAllowList</b><br/>• Enforces Pod CIDR: 10.128.0.0/14<br/>• Enforces VPC CIDR: 10.0.0.0/16"]
+    subgraph Policy_Validation ["3. Zero-Trust Cryptographic & Security Verification"]
+        direction TB
+
+        subgraph SolA_Security ["Solution A: Traefik CRDs (traefik-crd-poc)"]
+            direction TB
+            TLSOption["<b>TLSOption: strict-mtls</b><br/>• Enforce Min TLS 1.3<br/>• clientAuth: RequireAndVerifyClientCert<br/>• Trust Anchor: internal-ca-secret"]
+            MW_IP["<b>Middleware: IPAllowList</b><br/>• Restrict to Pod CIDR: 10.128.0.0/14<br/>• Restrict to VPC CIDR: 10.0.0.0/16"]
+            ST["<b>ServersTransport</b><br/>• Downstream mTLS to Backend Pod<br/>• Validates SAN: service-b.apps.cluster.local"]
+            TLSOption --> MW_IP --> ST
         end
 
-        subgraph SolB_Security ["Solution B Engine (Gateway API)"]
-            GW_Internal["<b>Gateway Listener: internal-mtls</b><br/>• Hostname: *.apps.cluster.local<br/>• Port: 8443 (HTTPS Terminate)"]
-            BTLP["<b>BackendTLSPolicy (Gateway API)</b><br/>• Target: Service 'service-b'<br/>• Trust Anchor: internal-ca-secret<br/>• Validates SAN: service-b.apps.cluster.local"]
-            HR_Filter["<b>HTTPRoute Filters</b><br/>• RequestHeaderModifier: X-Authenticated-Issuer<br/>• ExtensionRef: IPAllowList Validation Hook"]
+        subgraph SolB_Security ["Solution B: Gateway API (traefik-gateway-poc)"]
+            direction TB
+            GW_Internal["<b>Gateway Listener: internal-mtls</b><br/>• Hostname: *.apps.cluster.local<br/>• Terminate HTTPS (:8443)"]
+            HR_Filter["<b>HTTPRoute Security Filters</b><br/>• Injects: X-Authenticated-Issuer<br/>• ExtensionRef: IPAllowList Hook"]
+            BTLP["<b>BackendTLSPolicy (v1alpha3)</b><br/>• Target Service: service-b<br/>• Validates SAN: service-b.apps.cluster.local<br/>• Trust Anchor: internal-ca-secret"]
+            GW_Internal --> HR_Filter --> BTLP
         end
     end
 
-    subgraph Backend_Tier ["Backend Workload Tier"]
-        ServiceB["<b>Service-B Pod</b> (Provider API)<br/>• Listens on internal Port 8443<br/>• Cryptographically validates upstream Traefik identity"]
+    subgraph Provider_Tier ["4. Upstream Provider Microservice Tier"]
+        ServiceB_A["<b>Service-B Pod</b> (Namespace: traefik-crd-poc)<br/>• Listens on :8443 (HTTPS)<br/>• Validates Traefik mTLS Identity"]
+        ServiceB_B["<b>Service-B Pod</b> (Namespace: traefik-gateway-poc)<br/>• Listens on :8443 (HTTPS)<br/>• Validates Traefik mTLS Identity"]
     end
 
-    ServiceA -->|"1. HTTPS call with Client Cert"| TraefikInternal
+    ServiceA -->|"1. In-Cluster HTTPS Call"| TraefikInternal
 
-    TraefikInternal -->|"Solution A Flow"| TLSOption
-    TLSOption -->|"Verify Client Cert"| MW_IP
-    MW_IP -->|"Verify Caller Pod IP"| ST
-    ST -->|"2. Upstream mTLS Stream"| ServiceB
+    TraefikInternal -->|"Validate Solution A"| TLSOption
+    ST -->|"2. Upstream mTLS"| ServiceB_A
 
-    TraefikInternal -->|"Solution B Flow"| GW_Internal
-    GW_Internal -->|"Validate Listener Attachment"| HR_Filter
-    HR_Filter -->|"Inject Authenticated Caller Context"| BTLP
-    BTLP -->|"Verify Upstream SAN & CA"| ServiceB
+    TraefikInternal -->|"Validate Solution B"| GW_Internal
+    BTLP -->|"2. Upstream mTLS"| ServiceB_B
 ```
 
 ### Hop-by-Hop East-West & mTLS Mechanics Breakdown
