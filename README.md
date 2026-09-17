@@ -61,7 +61,7 @@
 
 ## Executive Summary
 
-This enterprise Proof of Concept (PoC) repository—hosted under the organization path `https://github.com/nubenetes` (repository reference: `://github.com/nubenetes/traefik-fqdn-management-poc-openshift-aws`)—establishes an end-to-end reference architecture for advanced Fully Qualified Domain Name (FQDN) management, automated edge routing, and zero-trust microservice communication within **Red Hat OpenShift Container Platform v4.14+ (ROSA / self-managed OCP on AWS)**.
+This enterprise Proof of Concept (PoC) establishes a production-grade reference architecture and engineering benchmark for advanced Fully Qualified Domain Name (FQDN) management, automated edge ingress, and zero-trust microservice communication within **Red Hat OpenShift Container Platform v4.14+ (ROSA / self-managed OCP on AWS)**.
 
 In mission-critical enterprise environments, default platform routing constructs often struggle to address the convergence of hybrid cloud domain delegation, sub-second route propagation without proxy reload overhead, multi-tenant RBAC boundaries, and East-West mutual TLS (mTLS) enforcement. This PoC implements and benchmark-tests two production-grade architectures:
 
