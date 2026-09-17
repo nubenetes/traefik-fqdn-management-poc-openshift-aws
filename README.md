@@ -186,47 +186,37 @@ East-West traffic governs internal, secure communication between services across
 ### East-West Architecture Diagram
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 280}}}%%
 flowchart TD
     subgraph Client_Tier ["1. Consumer Microservice Tier"]
-        ServiceA["<b>Service-A Pod (Client)</b><br/>• Internal Caller in OpenShift<br/>• Targets: service-b.apps.cluster.local<br/>• Presents internal Root CA Client Cert"]
+        ServiceA["<b>Service-A Pod (Client)</b><br/>• OpenShift internal caller<br/>• Targets: service-b.<br/>apps.cluster.local<br/>• Presents Root CA Client Cert"]
     end
 
-    subgraph Ingress_Mesh ["2. Ingress & Mesh Data Plane (traefik-system)"]
-        TraefikInternal["<b>Traefik Proxy v3.0+ Router</b><br/>• Dedicated Internal Listener (:8443)<br/>• Terminates & Validates Client TLS"]
+    subgraph Ingress_Tier ["2. Ingress & Mesh Data Plane (traefik-system)"]
+        TraefikInternal["<b>Traefik Proxy v3.0+ Router</b><br/>• Dedicated Internal Listener (:8443)<br/>• Terminates & Validates Client TLS 1.3"]
     end
 
-    subgraph Policy_Validation ["3. Zero-Trust Cryptographic & Security Verification"]
+    subgraph SolA ["3A. Solution A: Traefik CRD Pipeline (traefik-crd-poc)"]
         direction TB
-
-        subgraph SolA_Security ["Solution A: Traefik CRDs (traefik-crd-poc)"]
-            direction TB
-            TLSOption["<b>TLSOption: strict-mtls</b><br/>• Enforce Min TLS 1.3<br/>• clientAuth: RequireAndVerifyClientCert<br/>• Trust Anchor: internal-ca-secret"]
-            MW_IP["<b>Middleware: IPAllowList</b><br/>• Restrict to Pod CIDR: 10.128.0.0/14<br/>• Restrict to VPC CIDR: 10.0.0.0/16"]
-            ST["<b>ServersTransport</b><br/>• Downstream mTLS to Backend Pod<br/>• Validates SAN: service-b.apps.cluster.local"]
-            TLSOption --> MW_IP --> ST
-        end
-
-        subgraph SolB_Security ["Solution B: Gateway API (traefik-gateway-poc)"]
-            direction TB
-            GW_Internal["<b>Gateway Listener: internal-mtls</b><br/>• Hostname: *.apps.cluster.local<br/>• Terminate HTTPS (:8443)"]
-            HR_Filter["<b>HTTPRoute Security Filters</b><br/>• Injects: X-Authenticated-Issuer<br/>• ExtensionRef: IPAllowList Hook"]
-            BTLP["<b>BackendTLSPolicy (v1alpha3)</b><br/>• Target Service: service-b<br/>• Validates SAN: service-b.apps.cluster.local<br/>• Trust Anchor: internal-ca-secret"]
-            GW_Internal --> HR_Filter --> BTLP
-        end
+        TLSOption["<b>TLSOption: strict-mtls</b><br/>• Min TLS 1.3 Profile<br/>• RequireAndVerify<br/>ClientCert<br/>• CA: internal-ca-secret"]
+        MW_IP["<b>Middleware: IPAllowList</b><br/>• Pod CIDR: 10.128.0.0/14<br/>• VPC CIDR: 10.0.0.0/16"]
+        ST["<b>ServersTransport</b><br/>• Upstream Pod mTLS<br/>• Validates SAN: service-b.<br/>apps.cluster.local"]
+        ServiceB_A["<b>Service-B Pod (Provider API)</b><br/>• Namespace: traefik-crd-poc<br/>• Listens on :8443 (HTTPS)<br/>• Validates Traefik Identity"]
+        TLSOption --> MW_IP --> ST --> ServiceB_A
     end
 
-    subgraph Provider_Tier ["4. Upstream Provider Microservice Tier"]
-        ServiceB_A["<b>Service-B Pod</b> (Namespace: traefik-crd-poc)<br/>• Listens on :8443 (HTTPS)<br/>• Validates Traefik mTLS Identity"]
-        ServiceB_B["<b>Service-B Pod</b> (Namespace: traefik-gateway-poc)<br/>• Listens on :8443 (HTTPS)<br/>• Validates Traefik mTLS Identity"]
+    subgraph SolB ["3B. Solution B: Gateway API Pipeline (traefik-gateway-poc)"]
+        direction TB
+        GW_Internal["<b>Gateway Listener (:8443)</b><br/>• Host: *.apps.cluster.local<br/>• Protocol: HTTPS Terminate"]
+        HR_Filter["<b>HTTPRoute Security Filters</b><br/>• Injects Caller Identity<br/>• IPAllowList Extension Hook"]
+        BTLP["<b>BackendTLSPolicy (v1alpha3)</b><br/>• Target Service: service-b<br/>• Validates SAN: service-b.<br/>apps.cluster.local<br/>• Trust: internal-ca-secret"]
+        ServiceB_B["<b>Service-B Pod (Provider API)</b><br/>• Namespace: traefik-gateway-poc<br/>• Listens on :8443 (HTTPS)<br/>• Validates Traefik Identity"]
+        GW_Internal --> HR_Filter --> BTLP --> ServiceB_B
     end
 
     ServiceA -->|"1. In-Cluster HTTPS Call"| TraefikInternal
-
-    TraefikInternal -->|"Validate Solution A"| TLSOption
-    ST -->|"2. Upstream mTLS"| ServiceB_A
-
-    TraefikInternal -->|"Validate Solution B"| GW_Internal
-    BTLP -->|"2. Upstream mTLS"| ServiceB_B
+    TraefikInternal -->|"Solution A Route"| TLSOption
+    TraefikInternal -->|"Solution B Route"| GW_Internal
 ```
 
 ### Hop-by-Hop East-West & mTLS Mechanics Breakdown
