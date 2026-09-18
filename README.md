@@ -56,6 +56,12 @@
   - [Comparative Analysis & Multi-Cloud Linkage](#comparative-analysis--multi-cloud-linkage)
 - [🧭 Architectural Infographic & Holistic System Map](#-architectural-infographic--holistic-system-map)
   - [Holistic Architectural Blueprint Breakdown](#holistic-architectural-blueprint-breakdown)
+- [📚 Authoritative References & Learning Resources](#-authoritative-references--learning-resources)
+  - [1. Red Hat OpenShift & Enterprise Ingress Routing](#1-red-hat-openshift--enterprise-ingress-routing)
+  - [2. Traefik Proxy v3 & Cloud-Native Ingress Data Planes](#2-traefik-proxy-v3--cloud-native-ingress-data-planes)
+  - [3. CNCF Kubernetes Gateway API Specifications](#3-cncf-kubernetes-gateway-api-specifications)
+  - [4. AWS Cloud Networking, NLB & DNS Automation](#4-aws-cloud-networking-nlb--dns-automation)
+  - [5. Zero-Trust Architecture, mTLS & Security Standards](#5-zero-trust-architecture-mtls--security-standards)
 
 ---
 
@@ -543,3 +549,61 @@ The visual infographic above provides an executive architecture overview of the 
   * **Native OpenShift Routes (1. Native Fit):** Best for day-1 basic web workloads utilizing the cluster wildcard (`*.apps`) where zero additional controller overhead is the priority.
   * **Traefik CRDs (Solution A / 3. Velocity):** Best for unified engineering teams seeking battle-tested middleware pipelines, rapid delivery velocity, and sub-second in-memory configuration updates.
   * **Kubernetes Gateway API (Solution B / 2. Portability & RBAC):** Best for multi-cloud parity (OpenShift, AWS EKS, Google GKE), strict RBAC separation between Platform Admins and App Developers, and long-term CNCF standardization.
+
+---
+
+## 📚 Authoritative References & Learning Resources
+
+This proof of concept and its architectural blueprints are grounded in official enterprise engineering documentation, industry standards from the Cloud Native Computing Foundation (CNCF), and cloud provider reference architectures. The following curated references serve as foundational learning resources and evidence of the industry-proven patterns implemented throughout this repository.
+
+### 1. Red Hat OpenShift & Enterprise Ingress Routing
+
+- [Red Hat OpenShift Ingress Operator Documentation](https://docs.openshift.com/container-platform/latest/networking/ingress-operator.html)  
+  *Context & Evidence:* Official specification of the OpenShift `IngressController` lifecycle, explaining HAProxy configuration generation, the `haproxy -f` reload process, and the architectural justification for bypassing the native router when sub-second dynamic routing is required.
+- [Managing Security Context Constraints (SCCs) in OpenShift](https://docs.openshift.com/container-platform/latest/authentication/managing-security-context-constraints.html)  
+  *Context & Evidence:* Authoritative guide on OpenShift's `restricted-v2` SCC enforcement, detailing why non-root execution (UID `65532`), dropping Linux capabilities (`ALL`), and binding unprivileged internal ports (`8000/8443`) are mandatory for enterprise compliance.
+- [OpenShift DNS Operator & CoreDNS Architecture](https://docs.openshift.com/container-platform/latest/networking/dns-operator.html)  
+  *Context & Evidence:* Official documentation on the operator-managed CoreDNS deployment (`dns.operator.openshift.io`), providing evidence of why modifying the CoreDNS `ConfigMap` directly is an anti-pattern (operator reconciliation), and justifying Traefik's Layer 7 Split-Horizon Ingress pattern.
+
+### 2. Traefik Proxy v3 & Cloud-Native Ingress Data Planes
+
+- [Traefik Proxy Official Documentation (v3.0+)](https://doc.traefik.io/traefik/)  
+  *Context & Evidence:* Architectural overview of Traefik Proxy v3, its event-driven Go runtime, and how dynamic configuration updates are evaluated in memory without socket termination.
+- [Traefik Kubernetes CRD Provider Specification](https://doc.traefik.io/traefik/routing/providers/kubernetes-crd/)  
+  *Context & Evidence:* Complete syntax and behavioral reference for `IngressRoute`, `Middleware`, `TLSOption`, and `ServersTransport` Custom Resource Definitions utilized in Solution A.
+- [Traefik Kubernetes Gateway API Provider](https://doc.traefik.io/traefik/routing/providers/kubernetes-gateway/)  
+  *Context & Evidence:* Documentation for Traefik's native implementation of the CNCF Gateway API controller (`traefik.io/gateway-controller`), enabling `GatewayClass`, `Gateway`, and `HTTPRoute` reconciliation in Solution B.
+- [Traefik PROXY Protocol EntryPoint Configuration](https://doc.traefik.io/traefik/routing/entrypoints/#proxyprotocol)  
+  *Context & Evidence:* Technical specification on configuring `proxyProtocol.trustedIPs` on entrypoints (`web` / `websecure`) to preserve upstream client IP addresses forwarded by AWS NLBs.
+
+### 3. CNCF Kubernetes Gateway API Specifications
+
+- [Kubernetes Gateway API Official Project Documentation](https://gateway-api.sigs.k8s.io/)  
+  *Context & Evidence:* The official CNCF SIG-Network project documentation establishing the declarative role-oriented routing model, API conventions, and versioning standards.
+- [Gateway API Core Specifications (GatewayClass, Gateway, HTTPRoute)](https://gateway-api.sigs.k8s.io/concepts/api-overview/)  
+  *Context & Evidence:* Detailed breakdown of the tri-persona RBAC separation model (Infrastructure Provider, Cluster Operator, Application Developer) implemented in Solution B.
+- [Gateway API BackendTLSPolicy Specification (v1alpha3)](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1alpha3.BackendTLSPolicy)  
+  *Context & Evidence:* Official specification for declarative upstream backend TLS validation and Subject Alternative Name (SAN) verification, establishing sidecar-free zero-trust pod handshakes.
+- [Gateway API Mesh (GAMMA) Initiative](https://gateway-api.sigs.k8s.io/concepts/gamma/)  
+  *Context & Evidence:* Explains the evolving CNCF standard for handling East-West service-to-service routing and mutual TLS using standard Gateway API resources.
+
+### 4. AWS Cloud Networking, NLB & DNS Automation
+
+- [AWS Load Balancer Controller Service Annotations](https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/service/annotations/)  
+  *Context & Evidence:* Complete reference for provisioning AWS Network Load Balancers (NLB) via Kubernetes `LoadBalancer` services, including `service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: "*"` and cross-zone load balancing.
+- [AWS Network Load Balancer Target Groups & PROXY Protocol v2](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#proxy-protocol)  
+  *Context & Evidence:* Deep-dive AWS documentation on how Layer 4 TCP listeners encode client connection metadata (source IP, source port) into binary PROXY protocol v2 headers.
+- [Kubernetes ExternalDNS Project Documentation](https://github.com/kubernetes-sigs/external-dns)  
+  *Context & Evidence:* Official guide on how ExternalDNS watches Kubernetes Ingress, `IngressRoute`, and `Gateway` annotations to synchronize AWS Route 53 A and ALIAS DNS records in sub-minute convergence times.
+- [AWS Route 53 Choosing Between Alias and Non-Alias Resource Record Sets](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-choosing-alias-non-alias.html)  
+  *Context & Evidence:* Best practices for routing apex and subdomain FQDNs directly to AWS NLB DNS targets with zero-cost Route 53 query evaluation.
+
+### 5. Zero-Trust Architecture, mTLS & Security Standards
+
+- [NIST Special Publication 800-207: Zero Trust Architecture](https://csrc.nist.gov/publications/detail/sp/800-207/final)  
+  *Context & Evidence:* The foundational United States Federal standard defining Zero Trust principles, establishing that perimeter location does not confer trust and mandating mutual cryptographic authentication (mTLS) on all East-West data transactions.
+- [RFC 8446 - The Transport Layer Security (TLS) Protocol Version 1.3](https://datatracker.ietf.org/doc/html/rfc8446)  
+  *Context & Evidence:* IETF standard defining the performance and cryptographic improvements of TLS 1.3, including 1-RTT handshakes, removal of legacy insecure ciphers, and mandatory certificate verification during `CertificateRequest`.
+- [CNCF Cloud Native Security Whitepaper](https://github.com/cncf/tag-security/blob/main/security-whitepaper/cloud-native-security-whitepaper.md)  
+  *Context & Evidence:* CNCF Security TAG best practices for securing container platforms, identity-centric microsegmentation, and mitigating the resource overhead of service-to-service encryption.
+
