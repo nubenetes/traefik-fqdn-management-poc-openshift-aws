@@ -64,6 +64,7 @@
   - [4. AWS Cloud Networking, NLB & DNS Automation](#4-aws-cloud-networking-nlb--dns-automation)
   - [5. Zero-Trust Architecture, mTLS & Security Standards](#5-zero-trust-architecture-mtls--security-standards)
   - [6. 🎬 YouTube Video Walkthroughs & Technical Masterclasses (@nubenetes)](#6--youtube-video-walkthroughs--technical-masterclasses-nubenetes)
+    - [6.1 ⚡ Related YouTube Shorts](#61--related-youtube-shorts-quick-architectural-concepts--60-second-deep-dives)
 
 ---
 
@@ -688,5 +689,39 @@ The implementations, manifests, and architectural trade-offs demonstrated across
 - 🎙️ [**Gateway API y FQDNs** (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
   *Context & Evidence:* Dissects the CNCF Gateway API v1.1 GA standard, why `HTTPRoute` does not resolve in-cluster DNS by default, and how to design dual-plane FQDN architectures that prevent configuration drift between external and internal environments.  
   *Language & Audio Settings:* Generated in **Spanish (Español)** with **Multilingual Audio Tracks** enabled (switch audio language in YouTube player Settings ⚙️ ➔ Audio track).
+
+---
+
+#### 6.1 ⚡ Related YouTube Shorts (Quick Architectural Concepts & 60-Second Deep Dives)
+
+In addition to the extended masterclasses, the following fast-paced video shorts provide visual and conceptual summaries of ingress mechanics, split-brain DNS, and Gateway API architectures on OpenShift:
+
+> [!NOTE]
+> **Multilingual Audio Settings:** All shorts feature **original audio in Spanish (Español 🇪🇸)** with **YouTube Multilingual Audio Tracks** enabled (21+ audio languages available via player **Settings (⚙️) ➔ Audio track**).
+
+| YouTube Short | Duration | Original Audio | Key Architectural Concept | Watch on YouTube |
+| :--- | :---: | :---: | :--- | :---: |
+| **How to Route East West unified FQDNs on OpenShift with Traefik or Gateway API** | 1m 23s | Spanish 🇪🇸 *(Multilingual ⚙️)* | Layer 7 split-horizon routing on OpenShift 4.x, avoiding hairpinning out to public AWS NLB, and overcoming CoreDNS immutability. | [⚡ Ver Short](https://www.youtube.com/shorts/_YufQ7kv2xM) |
+| **Cómo Enrutar Dominios Internos con Traefik con FQDN unificado** | 1m 34s | Spanish 🇪🇸 *(Multilingual ⚙️)* | Enrutamiento de microservicios internos con dominio canónico idéntico al externo usando Traefik y Gateway API sin peaje de sidecars. | [⚡ Ver Short](https://www.youtube.com/shorts/ZNo0BCIXlbA) |
+| **The Ghost in the Server: East-West & Split-Brain DNS on Red Hat OpenShift 4.x** | 0m 58s | Spanish 🇪🇸 *(Multilingual ⚙️)* | Unveils the hidden hairpinning problem when internal pods query canonical domains, adding 15–40ms latency and AWS egress bills. | [⚡ Ver Short](https://www.youtube.com/shorts/LX_SLw5ovVo) |
+| **How Split Brain DNS Keeps Traffic Hidden** | 1m 09s | Spanish 🇪🇸 *(Multilingual ⚙️)* | Explains split-horizon DNS: external callers traverse public WAF/NLB while internal cluster pods resolve directly to private ClusterIP. | [⚡ Ver Short](https://www.youtube.com/shorts/moT_HjQsuF4) |
+| **Routing Internal URLs With Service Mesh** | 1m 17s | Spanish 🇪🇸 *(Multilingual ⚙️)* | How Layer 7 transparent proxying intercepts `Host` headers and rewrites destinations to in-cluster services without DNS hacks. | [⚡ Ver Short](https://www.youtube.com/shorts/go_sCgyASe4) |
+| **Traefik CRDs vs Gateway API on OpenShift** | 1m 16s | Spanish 🇪🇸 *(Multilingual ⚙️)* | 60-second showdown between Traefik native CRDs (`IngressRoute`) and Kubernetes Gateway API (`HTTPRoute`) on OpenShift ROSA. | [⚡ Ver Short](https://www.youtube.com/shorts/ZykBWmE9Gd8) |
+
+##### Shorts Reference Breakdown:
+
+1. ⚡ [**How to Route East West unified FQDNs on OpenShift with Traefik or Gateway API** (1m 23s)](https://www.youtube.com/shorts/_YufQ7kv2xM) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
+   *Context & Evidence:* Overcoming the OpenShift 4.14+ CoreDNS immutability lock by deploying Traefik v3 and Kubernetes Gateway API to achieve Layer 7 Split-Horizon routing. Eliminates inter-namespace AWS hairpinning and saves 50–100 GB RAM by dropping legacy Envoy sidecars.
+2. ⚡ [**Cómo Enrutar Dominios Internos con Traefik con FQDN unificado** (1m 34s)](https://www.youtube.com/shorts/ZNo0BCIXlbA) *(Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️)*  
+   *Context & Evidence:* Guía condensada sobre resolución de dominios idénticos (`api.empresa.com`) para llamadas internas y externas en Kubernetes y OpenShift. Demuestra cómo Traefik intercepta el tráfico sin modificar Corefiles globales.
+3. ⚡ [**The Ghost in the Server: East-West & Split-Brain DNS on Red Hat OpenShift 4.x** (0m 58s)](https://www.youtube.com/shorts/LX_SLw5ovVo) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
+   *Context & Evidence:* Highlights the latency hazards of default cluster networking where internal calls traverse external AWS NLB routers. Explains why declaring custom DNS zones requires `cluster-admin` and how L7 split-horizon ingress solves the dilemma cleanly.
+4. ⚡ [**How Split Brain DNS Keeps Traffic Hidden** (1m 09s)](https://www.youtube.com/shorts/moT_HjQsuF4) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
+   *Context & Evidence:* Architectural breakdown of Split-Brain / Split-Horizon DNS: outside requests flow through perimeter firewalls and WAF, while internal developers and microservices resolve the exact same URL to a private ClusterIP with zero internet egress costs.
+5. ⚡ [**Routing Internal URLs With Service Mesh** (1m 17s)](https://www.youtube.com/shorts/go_sCgyASe4) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
+   *Context & Evidence:* Explains transparent Layer 7 interception with Envoy/Cilium: dynamically inspecting HTTP `Host` headers and rewriting routes to `svc.cluster.local` without maintaining fragile DNS records or spoofing CoreDNS.
+6. ⚡ [**Traefik CRDs vs Gateway API on OpenShift** (1m 16s)](https://www.youtube.com/shorts/ZykBWmE9Gd8) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
+   *Context & Evidence:* Rapid architectural comparison on ROSA: Traefik CRDs (`IngressRoute`, zero 503 reload flaps) vs. CNCF Gateway API (`HTTPRoute`, zero vendor lock-in), direct OpenShift HAProxy router bypass, and strict non-root UID 65532 (`restricted-v2` SCC).
+
 
 

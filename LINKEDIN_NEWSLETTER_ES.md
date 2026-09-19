@@ -471,6 +471,15 @@ Si prefieres seguir el despliegue, las pruebas de validación y los análisis ar
 4. 🎙️ [**Gateway API y FQDNs**](https://www.youtube.com/watch?v=vay32AcPJ9Q) *(8m 44s • Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️)*  
    *Análisis a fondo:* Evolución del estándar Kubernetes Gateway API v1.1 GA hacia 2026, resolución de FQDNs de doble plano y erradicación del drift de entornos en arquitecturas multicloud.
 
+#### ⚡ YouTube Shorts Relacionados (Píldoras Arquitectónicas de 60–90 Segundos)
+
+- ⚡ [**How to Route East West unified FQDNs on OpenShift with Traefik or Gateway API**](https://www.youtube.com/shorts/_YufQ7kv2xM) *(1m 23s • Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️)*: Enrutamiento Split-Horizon en Capa 7 en OpenShift 4.x evitando el hairpinning hacia el NLB público de AWS.
+- ⚡ [**Cómo Enrutar Dominios Internos con Traefik con FQDN unificado**](https://www.youtube.com/shorts/ZNo0BCIXlbA) *(1m 34s • Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️)*: Resolución canónica para microservicios sin costes de sidecar ni alteraciones en CoreDNS.
+- ⚡ [**The Ghost in the Server: East-West & Split-Brain DNS on Red Hat OpenShift 4.x**](https://www.youtube.com/shorts/LX_SLw5ovVo) *(0m 58s • Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️)*: El problema del hairpinning oculto que añade 15–40ms de latencia y costes de egress en AWS.
+- ⚡ [**How Split Brain DNS Keeps Traffic Hidden**](https://www.youtube.com/shorts/moT_HjQsuF4) *(1m 09s • Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️)*: Inspección perimetral WAF/NLB frente a resolución directa por ClusterIP interno.
+- ⚡ [**Routing Internal URLs With Service Mesh**](https://www.youtube.com/shorts/go_sCgyASe4) *(1m 17s • Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️)*: Intercepción transparente en Capa 7 con Envoy/Cilium y reescritura dinámica de rutas.
+- ⚡ [**Traefik CRDs vs Gateway API on OpenShift**](https://www.youtube.com/shorts/ZykBWmE9Gd8) *(1m 16s • Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️)*: Duelo rápido entre Traefik IngressRoute y Kubernetes Gateway API HTTPRoute en OpenShift ROSA.
+
 ---
 
 ### 🔗 Explora el Repositorio y Prueba el Despliegue
