@@ -470,6 +470,10 @@ Si prefieres seguir el despliegue, las pruebas de validación y los análisis ar
    *Análisis a fondo:* Alternativas a Traefik para FQDN unificado: Cilium eBPF en kernel vs. Istio Ambient mode, eliminación del "impuesto de sidecar" (0 MB de RAM por pod) y comparativa de flujos Capa 4 vs. Capa 7.
 4. 🎙️ [**Gateway API y FQDNs**](https://www.youtube.com/watch?v=vay32AcPJ9Q) *(8m 44s • Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️)*  
    *Análisis a fondo:* Evolución del estándar Kubernetes Gateway API v1.1 GA hacia 2026, resolución de FQDNs de doble plano y erradicación del drift de entornos en arquitecturas multicloud.
+5. 🎙️ [**Podcast: FQDN Unificado y el Futuro de Ingress/Service Mesh**](https://www.youtube.com/watch?v=pUilWzKDgFQ) *(15m 55s • Audio Original: Español 🇪🇸 • Pistas Multilingües ⚙️ • Formato: Podcast de Audio sin vídeo/slides)*  
+   *Análisis a fondo:* Podcast técnico en formato solo audio que analiza el antipatrón de forzar URLs duales (`INTERNAL_URL` vs. `EXTERNAL_URL`) en aplicaciones de IDP, la consolidación de FQDN unificado en OpenShift y AWS con Traefik v3 y Gateway API, superación del bloqueo de CoreDNS, alternativas sidecarless y reflexiones sobre la cultura técnica frente al "teatro de Jira".
+6. 🎙️ [**Podcast: Beyond Ingress with Dual Plane FQDN**](https://www.youtube.com/watch?v=ID0YEJzv_4E) *(59m 29s • Audio Original: Inglés 🇺🇸 • Pistas Multilingües ⚙️ • Formato: Podcast de Audio sin vídeo/slides)*  
+   *Análisis a fondo:* Podcast técnico de 1 hora en formato solo audio que profundiza en la arquitectura Dual Plane FQDN, eliminación de penalizaciones por recarga de HAProxy, enrutamiento transparente de microservicios sin peaje de memoria de sidecars (0 MB de RAM overhead), DNS Split-Horizon en AWS y defensa del rigor técnico en ingeniería de plataformas.
 
 #### ⚡ YouTube Shorts Relacionados (Píldoras Arquitectónicas de 60–90 Segundos)
 

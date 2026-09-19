@@ -470,6 +470,10 @@ For a step-by-step visual and audio walkthrough of the architecture, code, and l
    *Deep-Dive:* Evaluating alternatives to Traefik: in-kernel Cilium eBPF vs. Istio Ambient mode, sidecarless data plane efficiency (0 MB pod RAM overhead), and Layer 4 vs. Layer 7 mechanics.
 4. 🎙️ [**Gateway API y FQDNs**](https://www.youtube.com/watch?v=vay32AcPJ9Q) *(8m 44s • Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
    *Deep-Dive:* Evolution of Kubernetes Gateway API v1.1 GA towards 2026, dual-plane FQDN resolution, and eliminating environment drift across multi-cloud clusters.
+5. 🎙️ [**Podcast: FQDN Unificado y el Futuro de Ingress/Service Mesh**](https://www.youtube.com/watch?v=pUilWzKDgFQ) *(15m 55s • Original: Spanish 🇪🇸 • Multilingual Audio ⚙️ • Format: Audio Podcast without video/slides)*  
+   *Deep-Dive:* Technical audio podcast (audio-only format without video/slides) examining why forcing dual endpoints (`INTERNAL_URL` vs. `EXTERNAL_URL`) is a flawed anti-pattern, achieving Unified FQDN with Traefik Proxy v3 and Kubernetes Gateway API, bypassing CoreDNS immutability, and engineering culture reflections on real architecture vs. Jira ticket churn.
+6. 🎙️ [**Podcast: Beyond Ingress with Dual Plane FQDN**](https://www.youtube.com/watch?v=ID0YEJzv_4E) *(59m 29s • Original: English 🇺🇸 • Multilingual Audio ⚙️ • Format: Audio Podcast without video/slides)*  
+   *Deep-Dive:* Comprehensive 1-hour technical audio podcast (audio-only format without video/slides) dissecting Dual Plane FQDN architecture, bypassing OpenShift HAProxy reload limits, transparent in-cluster microservice routing with 0 MB sidecar RAM overhead, Split-Horizon DNS, and platform engineering integrity.
 
 #### ⚡ Related YouTube Shorts (Quick 60–90 Second Deep Dives)
 

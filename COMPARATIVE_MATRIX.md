@@ -279,6 +279,10 @@ While this repository focuses on an **AWS-native production implementation** on 
   *In-kernel Cilium eBPF vs. Istio Ambient mode for Unified FQDN routing without sidecars, and L4 vs. L7 packet flow analysis.*
 - 🎙️ [**Gateway API y FQDNs** (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
   *Kubernetes Gateway API v1.1 GA standard, dual-plane FQDN resolution, and eliminating environment drift across multi-cloud distros.*
+- 🎙️ [**Podcast: FQDN Unificado y el Futuro de Ingress/Service Mesh** (15:55)](https://www.youtube.com/watch?v=pUilWzKDgFQ) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️ • Technical Audio Podcast / Audio-only)*  
+  *Technical audio podcast (audio-only, no video/slides) on the dual URL anti-pattern, Unified FQDN with Traefik v3 and Gateway API, and engineering culture.*
+- 🎙️ [**Podcast: Beyond Ingress with Dual Plane FQDN** (59:29)](https://www.youtube.com/watch?v=ID0YEJzv_4E) *(Original: English 🇺🇸 • Multilingual Audio ⚙️ • Technical Audio Podcast / Audio-only)*  
+  *Comprehensive 1-hour audio podcast (audio-only, no video/slides) dissecting Dual Plane FQDN, sidecarless data plane efficiency, Split-Horizon DNS, and platform engineering integrity.*
 
 ### ⚡ YouTube Video Shorts (Quick Architectural Concepts)
 
