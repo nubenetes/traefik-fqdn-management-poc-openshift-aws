@@ -56,6 +56,7 @@
   - [Comparative Analysis & Multi-Cloud Linkage](#comparative-analysis--multi-cloud-linkage)
 - [🧭 Architectural Infographic & Holistic System Map](#-architectural-infographic--holistic-system-map)
   - [Holistic Architectural Blueprint Breakdown](#holistic-architectural-blueprint-breakdown)
+- [🌐 Multi-Engine Companion Project: Cloud-Native Ingress & Mesh Lab](#-multi-engine-companion-project-cloud-native-ingress--mesh-lab)
 - [📚 Authoritative References & Learning Resources](#-authoritative-references--learning-resources)
   - [1. Red Hat OpenShift & Enterprise Ingress Routing](#1-red-hat-openshift--enterprise-ingress-routing)
   - [2. Traefik Proxy v3 & Cloud-Native Ingress Data Planes](#2-traefik-proxy-v3--cloud-native-ingress-data-planes)
@@ -549,6 +550,57 @@ The visual infographic above provides an executive architecture overview of the 
   * **Native OpenShift Routes (1. Native Fit):** Best for day-1 basic web workloads utilizing the cluster wildcard (`*.apps`) where zero additional controller overhead is the priority.
   * **Traefik CRDs (Solution A / 3. Velocity):** Best for unified engineering teams seeking battle-tested middleware pipelines, rapid delivery velocity, and sub-second in-memory configuration updates.
   * **Kubernetes Gateway API (Solution B / 2. Portability & RBAC):** Best for multi-cloud parity (OpenShift, AWS EKS, Google GKE), strict RBAC separation between Platform Admins and App Developers, and long-term CNCF standardization.
+
+---
+
+## 🌐 Multi-Engine Companion Project: Cloud-Native Ingress & Mesh Lab
+
+Within the **nubenetes** cloud-native engineering portfolio, this AWS ROSA / Traefik v3 implementation operates as the companion deep-dive to our multi-engine reference laboratory:  
+👉 [**github.com/nubenetes/cloudnative-ingress-mesh-lab**](https://github.com/nubenetes/cloudnative-ingress-mesh-lab)
+
+### Why These Two Repositories Are Closely Related:
+* **The Shared OpenShift DNS Immutability Challenge**: Both repositories solve the core enterprise dilemma on **Red Hat OpenShift (OCP 4.14 – 4.20+)**, where the **Cluster DNS Operator strictly reconciles and locks down the cluster Corefile** (`dns-default` in `openshift-dns`), wiping out any manual DNS rewrite rules within seconds.
+* **Dual-Plane (North-South & East-West) Scope**: Both projects decouple external ingress from OpenShift's default wildcard (`*.apps.<clustername>`), while enforcing cryptographic mutual TLS (mTLS) and Layer 7 policies on East-West microservice transit.
+* **Gateway API v1 & Traefik v3 Standards Alignment**: Both repositories implement production Gateway API v1 (`GatewayClass`, `Gateway`, `HTTPRoute`) and Traefik v3 CRDs (`IngressRoute`, `Middleware`, `TLSOption`, `BackendTLSPolicy`).
+
+### How They Differ (Two Distinct Architectural Philosophies):
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  APPROACH 1: Split-Horizon Ingress via Traefik Service (This Repository)               │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│  Client Pod Syntax: `curl -H "Host: service-b.apps.cluster.local"                      │
+│                           https://traefik.traefik-system.svc.cluster.local:8443`       │
+│  • Client targets Traefik's native cluster Service FQDN (`*.svc.cluster.local`).       │
+│  • L3/L4 Resolution: 100% native CoreDNS out-of-the-box! Zero forwarders, zero patches.│
+│  • L7 Policy: Traefik inspects HTTP `Host` & SNI, validates client certs (`TLSOption`), │
+│    checks OVN CIDRs (`middleware-internal-east-west-allowlist`), and routes to pod.    │
+│  • Primary Focus: Production AWS ROSA with AWS NLB & Route 53 automation.              │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  APPROACH 2: Transparent In-Cluster DNS Interception (cloudnative-ingress-mesh-lab)   │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│  Client Pod Syntax: `curl http://backend.internal.corp/api`                            │
+│  • Client is completely agnostic to gateway addresses; calls business FQDN directly.   │
+│  • L3/L4 Resolution: Handled via OpenShift DNS Operator zone forward (`spec.servers`)  │
+│    pointing to an unprivileged secondary CoreDNS (`infra-dns`), or in-kernel eBPF     │
+│    socket proxy (Cilium), or node-level ztunnel DNS capture (Istio Ambient).           │
+│  • Primary Focus: 6-Way Comparative Lab (Cilium vs Istio Ambient vs Traefik vs Linkerd│
+│    vs Envoy Gateway vs Kong/Kuma) across OpenShift, EKS, AKS, GKE, and Bare-Metal.     │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Architectural Comparison Matrix:
+
+| Evaluation Dimension | `traefik-fqdn-management-poc-openshift-aws` (This Repository) | `cloudnative-ingress-mesh-lab` (Companion Project) |
+| :--- | :--- | :--- |
+| **Primary Scope** | **Production Deep-Dive**: Enterprise deployment on Red Hat OpenShift on AWS (ROSA v4.14+). | **Multi-Engine Comparative Lab**: 6-way benchmark (Cilium, Istio Ambient, Traefik, Linkerd, Envoy Gateway, Kong). |
+| **East-West DNS Strategy** | **Split-Horizon Ingress Horizon**: Microservices call Traefik's native `svc.cluster.local` address carrying the business domain in `Host`, or resolve via AWS Route 53 Private Zones. | **Transparent In-Cluster Interception**: Microservices call `backend.internal.corp` directly; resolved via secondary resolver (`infra-dns`), pod `hostAliases`, or in-kernel eBPF. |
+| **OpenShift DNS Operator Impact** | **0% Operator Changes**: No secondary CoreDNS forwarder and no pod `hostAliases` needed; utilizes native `svc.cluster.local` DNS. | Evaluates Pattern A (patching `dns.operator.openshift.io/default` `spec.servers`) and Pattern B (`hostAliases`). |
+| **Infrastructure Portability** | **AWS Cloud-Native**: Optimized for AWS NLB (L4 PROXY protocol v2), ExternalDNS with Route 53, and ROSA VPC networking. | **Distribution-Agnostic**: Identical manifests for Bare-Metal, Kind, OpenShift, AWS EKS, Azure AKS, Google GKE, and SUSE RKE2. |
+| **Zero-Trust mTLS Data Plane** | Centralized gateway mTLS via Traefik `TLSOption` (`RequireAndVerifyClientCert`) and `BackendTLSPolicy` (v1alpha3). | Compares in-kernel eBPF socket maps (Cilium), node-level ztunnel HBONE (Istio Ambient), and Gateway API proxies. |
+| **Detailed Technical Reading** | See [`COMPARATIVE_MATRIX.md`](./COMPARATIVE_MATRIX.md). | See [`docs/FQDN_ROUTING.md`](https://github.com/nubenetes/cloudnative-ingress-mesh-lab/blob/main/docs/FQDN_ROUTING.md). |
 
 ---
 

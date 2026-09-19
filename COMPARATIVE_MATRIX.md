@@ -201,6 +201,62 @@ While this repository demonstrates bypassing OpenShift's native routing on AWS R
 
 ---
 
+## 5. Multi-Engine Companion Laboratory: Transparent FQDN Routing & Service Mesh Lab (`nubenetes/cloudnative-ingress-mesh-lab`)
+
+While this repository focuses on an **AWS-native production implementation** on Red Hat OpenShift (ROSA) using Traefik Proxy v3 and Kubernetes Gateway API v1, platform engineering teams evaluating multi-cloud, multi-engine ingress and service mesh alternatives should consult our companion laboratory:  
+👉 [**github.com/nubenetes/cloudnative-ingress-mesh-lab**](https://github.com/nubenetes/cloudnative-ingress-mesh-lab)
+
+### 5.1 Architectural Relationship & Shared Foundation
+* **The OpenShift DNS Constraint**: Both repositories address the same core platform limitation on **Red Hat OpenShift 4.14 – 4.20+**: the **Cluster DNS Operator reconciles and locks the cluster Corefile (`dns-default`)**, strictly preventing manual in-place DNS rewrites.
+* **Dual-Plane (N-S & E-W) Scope**: Both projects reject reliance on ephemeral pod IPs or cluster-local short-names (`service.namespace`), enforcing canonical FQDNs across North-South edge entry and East-West inter-service transit.
+* **Gateway API v1 Standardization**: Both codebases implement the modern CNCF Kubernetes Gateway API v1 standard (`GatewayClass`, `Gateway`, `HTTPRoute`).
+
+### 5.2 The Core Architectural Distinction: Two Paradigms for East-West FQDNs
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  PARADIGM A: Split-Horizon Ingress via Traefik Service (This Repository)               │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│  • Developer Calling Syntax: `curl -H "Host: service-b.apps.cluster.local"             │
+│                                    https://traefik.traefik-system.svc.cluster.local`   │
+│  • L3/L4 Socket Establishment: The caller connects to Traefik's native cluster Service │
+│    name (`*.svc.cluster.local`). OpenShift CoreDNS resolves this natively with ZERO    │
+│    cluster configuration changes.                                                      │
+│  • L7 Policy Enforcement: Traefik inspects HTTP `Host`, validates client certs        │
+│    (`TLSOption` with `RequireAndVerifyClientCert`), checks OVN-Kubernetes CIDR         │
+│    allowlists, and proxies to upstream pods.                                           │
+│  • Result: 0% DNS Operator patches, 0 secondary forwarders, 0 pod `hostAliases`.       │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  PARADIGM B: Transparent In-Cluster DNS Interception (cloudnative-ingress-mesh-lab)   │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│  • Developer Calling Syntax: `curl http://backend.internal.corp/api`                   │
+│  • L3/L4 Socket Establishment: The client pod literally requests the business FQDN.    │
+│    Requires underlying name resolution before TCP SYN can be emitted.                  │
+│  • Interception Mechanics:                                                             │
+│    1. OpenShift DNS Operator zone forward (`spec.servers`) to an in-cluster secondary │
+│       CoreDNS forwarder (`infra-dns`) executing regular expression rewrites.           │
+│    2. Pod-level `hostAliases` injecting static `/etc/hosts` mappings.                  │
+│    3. In-kernel eBPF socket proxy (Cilium) or node-level ztunnel capture (Ambient).   │
+│  • Result: Microservices are 100% cloud/gateway-agnostic; no custom headers needed.   │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.3 Cross-Repository Comparative Matrix
+
+| Evaluation Dimension | `traefik-fqdn-management-poc-openshift-aws` (This Repository) | `cloudnative-ingress-mesh-lab` (Companion Laboratory) |
+| :--- | :--- | :--- |
+| **Architectural Scope** | **Deep-Dive Production Blueprint**: Red Hat OpenShift on AWS (ROSA v4.14+) with Traefik Proxy v3 and Gateway API. | **Multi-Engine Comparative Laboratory**: 6-way benchmark (Traefik v3 vs. Cilium eBPF vs. Istio Ambient vs. Linkerd vs. Envoy Gateway vs. Kong/Kuma). |
+| **East-West Transit Model** | **Split-Horizon Ingress**: Targeting Traefik's `svc.cluster.local` address + `Host` header, or AWS Route 53 Private Hosted Zones. | **Transparent In-Cluster Interception**: Microservices call `backend.internal.corp` directly; intercepted via forwarder, eBPF, or ztunnel. |
+| **DNS Operator Intervention** | **Zero (0%) Changes**: No secondary CoreDNS forwarder and no pod `hostAliases` required. | Pattern A patches `dns.operator.openshift.io/default` `spec.servers`; Pattern B uses pod `hostAliases`. |
+| **Multi-Cloud Portability** | **AWS Cloud-Native**: Leverages AWS NLB (L4 PROXY protocol v2), ExternalDNS with Route 53, and AWS VPC networking. | **Distribution-Agnostic**: Identical behavior on Bare-Metal, Kind, OpenShift, AWS EKS, Azure AKS, Google GKE, and SUSE RKE2. |
+| **mTLS / Zero-Trust Plane** | Gateway-level mTLS via Traefik `TLSOption` (`RequireAndVerifyClientCert`) and Gateway API `BackendTLSPolicy` (v1alpha3). | In-kernel socket maps (Cilium eBPF), node-level ztunnel HBONE (Istio Ambient), or Traefik hairpin. |
+| **When to Choose** | When running OpenShift on AWS and platform teams require mesh-less mTLS without modifying cluster DNS or application pod specs. | When microservices cannot change their calling syntax and require transparent DNS interception across any Kubernetes distribution. |
+| **Reference Document** | [`README.md`](./README.md) & manifests in [`solution-a-traefik-crds`](./manifests/solution-a-traefik-crds/). | [`docs/FQDN_ROUTING.md`](https://github.com/nubenetes/cloudnative-ingress-mesh-lab/blob/main/docs/FQDN_ROUTING.md). |
+
+---
+
 ## Navigation & Manifest References
 
 - 🏠 **Main Architecture & Deployment Guide:** [README.md](./README.md)
