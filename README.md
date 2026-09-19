@@ -664,22 +664,29 @@ This proof of concept and its architectural blueprints are grounded in official 
 
 The implementations, manifests, and architectural trade-offs demonstrated across this repository are thoroughly explained in technical video sessions published on the official [**nubenetes YouTube Channel (@nubenetes)**](https://youtube.com/@nubenetes):
 
-| Video Masterclass | Architectural Scope & Focus | Watch on YouTube |
-| :--- | :--- | :--- |
-| **OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API** | Full architectural walkthrough of this repository: Traefik CRDs (`IngressRoute`) vs. Gateway API (`HTTPRoute`), AWS NLB integration with PROXY Protocol v2, strict mTLS (TLS 1.3), and `restricted-v2` SCC compliance on ROSA. | [▶️ Ver Vídeo (9:06)](https://www.youtube.com/watch?v=kIEqhHRf-Ks) |
-| **FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API** | Deep dive into solving the OpenShift CoreDNS immutability barrier with Traefik Proxy v3 and Kubernetes Gateway API without paying the sidecar memory tax. Contrasting Pattern A (DNS Operator forwarding) with Pattern B (Split-Horizon Route 53). | [▶️ Ver Vídeo (9:25)](https://www.youtube.com/watch?v=zUq_CYC7vM8) |
-| **Unified FQDN Routing with Traefik alternatives** | Alternatives to Traefik for unified FQDN routing: in-kernel eBPF Cilium vs. Istio Ambient mode, sidecarless data plane efficiency (0 MB pod RAM overhead), OpenShift CoreDNS immutability, and L4 vs. L7 packet flow analysis. | [▶️ Ver Vídeo (8:14)](https://www.youtube.com/watch?v=xuDtcUZYeHU) |
-| **Gateway API y FQDNs** | Evolution of the Kubernetes Gateway API standard (`gateway.networking.k8s.io/v1`) towards 2026, dual-plane FQDN resolution (North-South external ingress & East-West in-cluster microservices), and avoiding environment drift across EKS, AKS, GKE, and ROSA. | [▶️ Ver Vídeo (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q) |
+> [!NOTE]
+> **Multilingual Audio Settings:** All video masterclasses were generated with **original Spanish audio** and support **YouTube Multilingual Audio Tracks** / auto-dubbing. You can select your preferred listening language and subtitles directly in the YouTube player via **Settings (⚙️) ➔ Audio track**.
+
+| Video Masterclass | Original Audio | Architectural Scope & Focus | Watch on YouTube |
+| :--- | :---: | :--- | :--- |
+| **OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API** | Spanish 🇪🇸 *(Multilingual ⚙️)* | Full architectural walkthrough of this repository: Traefik CRDs (`IngressRoute`) vs. Gateway API (`HTTPRoute`), AWS NLB integration with PROXY Protocol v2, strict mTLS (TLS 1.3), and `restricted-v2` SCC compliance on ROSA. | [▶️ Ver Vídeo (9:06)](https://www.youtube.com/watch?v=kIEqhHRf-Ks) |
+| **FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API** | Spanish 🇪🇸 *(Multilingual ⚙️)* | Deep dive into solving the OpenShift CoreDNS immutability barrier with Traefik Proxy v3 and Kubernetes Gateway API without paying the sidecar memory tax. Contrasting Pattern A (DNS Operator forwarding) with Pattern B (Split-Horizon Route 53). | [▶️ Ver Vídeo (9:25)](https://www.youtube.com/watch?v=zUq_CYC7vM8) |
+| **Unified FQDN Routing with Traefik alternatives** | Spanish 🇪🇸 *(Multilingual ⚙️)* | Alternatives to Traefik for unified FQDN routing: in-kernel eBPF Cilium vs. Istio Ambient mode, sidecarless data plane efficiency (0 MB pod RAM overhead), OpenShift CoreDNS immutability, and L4 vs. L7 packet flow analysis. | [▶️ Ver Vídeo (8:14)](https://www.youtube.com/watch?v=xuDtcUZYeHU) |
+| **Gateway API y FQDNs** | Spanish 🇪🇸 *(Multilingual ⚙️)* | Evolution of the Kubernetes Gateway API standard (`gateway.networking.k8s.io/v1`) towards 2026, dual-plane FQDN resolution (North-South external ingress & East-West in-cluster microservices), and avoiding environment drift across EKS, AKS, GKE, and ROSA. | [▶️ Ver Vídeo (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q) |
 
 #### Video References & Deep-Dive Summaries:
 
-- 🚀 [**OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API** (9:06)](https://www.youtube.com/watch?v=kIEqhHRf-Ks)  
-  *Context & Evidence:* Step-by-step walkthrough of this repository on Red Hat OpenShift on AWS (ROSA). Explains how to deploy Solution A (`IngressRoute`, `Middleware`, `TLSOption`) and Solution B (`Gateway`, `HTTPRoute`, `BackendTLSPolicy`), configure AWS NLB with PROXY Protocol v2, bypass the default OpenShift HAProxy router, avoid public hairpinning, and enforce TLS 1.3 under `restricted-v2` SCC.
-- 🎯 [**FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API** (9:25)](https://www.youtube.com/watch?v=zUq_CYC7vM8)  
-  *Context & Evidence:* Platform engineering analysis on bypassing the strict OpenShift CoreDNS `Corefile` immutability using Traefik Proxy v3 (~45MB RAM). Compares Pattern A (secondary unprivileged CoreDNS pod forwarded by OpenShift DNS Operator) vs. Pattern B (Split-Horizon Route 53 Private Hosted Zone pointing to Traefik's internal ClusterIP).
-- 🎙️ [**Unified FQDN Routing with Traefik alternatives** (8:14)](https://www.youtube.com/watch?v=xuDtcUZYeHU)  
-  *Context & Evidence:* Analyzes how to implement Unified FQDN using alternatives to Traefik, specifically in-kernel eBPF (Cilium) and sidecarless Istio Ambient (`ztunnel`), comparing memory footprints and explaining why L7 proxies require successful L4 TCP connections before routing.
-- 🎙️ [**Gateway API y FQDNs** (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q)  
-  *Context & Evidence:* Dissects the CNCF Gateway API v1.1 GA standard, why `HTTPRoute` does not resolve in-cluster DNS by default, and how to design dual-plane FQDN architectures that prevent configuration drift between external and internal environments.
+- 🚀 [**OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API** (9:06)](https://www.youtube.com/watch?v=kIEqhHRf-Ks) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
+  *Context & Evidence:* Step-by-step walkthrough of this repository on Red Hat OpenShift on AWS (ROSA). Explains how to deploy Solution A (`IngressRoute`, `Middleware`, `TLSOption`) and Solution B (`Gateway`, `HTTPRoute`, `BackendTLSPolicy`), configure AWS NLB with PROXY Protocol v2, bypass the default OpenShift HAProxy router, avoid public hairpinning, and enforce TLS 1.3 under `restricted-v2` SCC.  
+  *Language & Audio Settings:* Generated in **Spanish (Español)** with **Multilingual Audio Tracks** enabled (switch audio language in YouTube player Settings ⚙️ ➔ Audio track).
+- 🎯 [**FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API** (9:25)](https://www.youtube.com/watch?v=zUq_CYC7vM8) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
+  *Context & Evidence:* Platform engineering analysis on bypassing the strict OpenShift CoreDNS `Corefile` immutability using Traefik Proxy v3 (~45MB RAM). Compares Pattern A (secondary unprivileged CoreDNS pod forwarded by OpenShift DNS Operator) vs. Pattern B (Split-Horizon Route 53 Private Hosted Zone pointing to Traefik's internal ClusterIP).  
+  *Language & Audio Settings:* Generated in **Spanish (Español)** with **Multilingual Audio Tracks** enabled (switch audio language in YouTube player Settings ⚙️ ➔ Audio track).
+- 🎙️ [**Unified FQDN Routing with Traefik alternatives** (8:14)](https://www.youtube.com/watch?v=xuDtcUZYeHU) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
+  *Context & Evidence:* Analyzes how to implement Unified FQDN using alternatives to Traefik, specifically in-kernel eBPF (Cilium) and sidecarless Istio Ambient (`ztunnel`), comparing memory footprints and explaining why L7 proxies require successful L4 TCP connections before routing.  
+  *Language & Audio Settings:* Generated in **Spanish (Español)** with **Multilingual Audio Tracks** enabled (switch audio language in YouTube player Settings ⚙️ ➔ Audio track).
+- 🎙️ [**Gateway API y FQDNs** (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
+  *Context & Evidence:* Dissects the CNCF Gateway API v1.1 GA standard, why `HTTPRoute` does not resolve in-cluster DNS by default, and how to design dual-plane FQDN architectures that prevent configuration drift between external and internal environments.  
+  *Language & Audio Settings:* Generated in **Spanish (Español)** with **Multilingual Audio Tracks** enabled (switch audio language in YouTube player Settings ⚙️ ➔ Audio track).
 
 

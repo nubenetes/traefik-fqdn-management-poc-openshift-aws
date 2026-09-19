@@ -268,13 +268,16 @@ While this repository focuses on an **AWS-native production implementation** on 
 
 ## 🎬 YouTube Video Masterclasses & Architectural Sessions (@nubenetes)
 
-- 🚀 [**OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API** (9:06)](https://www.youtube.com/watch?v=kIEqhHRf-Ks)  
+> [!NOTE]
+> **Multilingual Audio Settings:** All video masterclasses were generated with **original Spanish audio** and support **YouTube Multilingual Audio Tracks** / auto-dubbing. You can select your preferred listening language directly in the YouTube player via **Settings (⚙️) ➔ Audio track**.
+
+- 🚀 [**OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API** (9:06)](https://www.youtube.com/watch?v=kIEqhHRf-Ks) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
   *Walkthrough of this repository: Traefik CRDs vs. Gateway API, AWS NLB PROXY Protocol v2, strict mTLS (TLS 1.3), and restricted-v2 SCC.*
-- 🎯 [**FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API** (9:25)](https://www.youtube.com/watch?v=zUq_CYC7vM8)  
+- 🎯 [**FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API** (9:25)](https://www.youtube.com/watch?v=zUq_CYC7vM8) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
   *Solving the OpenShift CoreDNS immutability barrier with Traefik Proxy v3: Pattern A vs. Pattern B.*
-- 🎙️ [**Unified FQDN Routing with Traefik alternatives** (8:14)](https://www.youtube.com/watch?v=xuDtcUZYeHU)  
+- 🎙️ [**Unified FQDN Routing with Traefik alternatives** (8:14)](https://www.youtube.com/watch?v=xuDtcUZYeHU) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
   *In-kernel Cilium eBPF vs. Istio Ambient mode for Unified FQDN routing without sidecars, and L4 vs. L7 packet flow analysis.*
-- 🎙️ [**Gateway API y FQDNs** (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q)  
+- 🎙️ [**Gateway API y FQDNs** (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q) *(Original: Spanish 🇪🇸 • Multilingual Audio ⚙️)*  
   *Kubernetes Gateway API v1.1 GA standard, dual-plane FQDN resolution, and eliminating environment drift across multi-cloud distros.*
 
 
