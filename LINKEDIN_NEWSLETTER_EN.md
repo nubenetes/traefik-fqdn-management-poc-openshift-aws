@@ -456,6 +456,21 @@ Traefik binds the **exact same canonical FQDN (`api.company.com`) across two dis
 
 ---
 
+### 🎬 Companion Video Masterclasses on YouTube (@nubenetes)
+
+For a step-by-step visual and audio walkthrough of the architecture, code, and live OpenShift cluster validations, watch the technical masterclass series on [**youtube.com/@nubenetes**](https://youtube.com/@nubenetes):
+
+1. 🚀 [**OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API**](https://www.youtube.com/watch?v=kIEqhHRf-Ks) *(9m 06s)*  
+   *Deep-Dive:* Hands-on architectural walkthrough of this repository on Red Hat OpenShift on AWS (ROSA). Comparing Solution A (`IngressRoute`) vs. Solution B (`HTTPRoute`), configuring AWS NLB with PROXY Protocol v2, strict mTLS (TLS 1.3), and `restricted-v2` SCC compliance.
+2. 🎯 [**FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API**](https://www.youtube.com/watch?v=zUq_CYC7vM8) *(9m 25s)*  
+   *Deep-Dive:* Platform engineering guide on overcoming the OpenShift CoreDNS immutability barrier with Traefik Proxy v3 and Gateway API. Pattern A (DNS Operator Forwarding) vs. Pattern B (Split-Horizon Route 53).
+3. 🎙️ [**Unified FQDN Routing with Traefik alternatives**](https://www.youtube.com/watch?v=xuDtcUZYeHU) *(8m 14s)*  
+   *Deep-Dive:* Evaluating alternatives to Traefik: in-kernel Cilium eBPF vs. Istio Ambient mode, sidecarless data plane efficiency (0 MB pod RAM overhead), and Layer 4 vs. Layer 7 mechanics.
+4. 🎙️ [**Gateway API y FQDNs**](https://www.youtube.com/watch?v=vay32AcPJ9Q) *(8m 44s)*  
+   *Deep-Dive:* Evolution of Kubernetes Gateway API v1.1 GA towards 2026, dual-plane FQDN resolution, and eliminating environment drift across multi-cloud clusters.
+
+---
+
 ### 🔗 Explore the Repository & Run the PoC
 
 Clone the repository, inspect the architecture diagrams, and run the automated deployment scripts on your cluster:

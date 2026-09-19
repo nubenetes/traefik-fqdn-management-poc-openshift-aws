@@ -456,6 +456,21 @@ Traefik permite enlazar el **mismo FQDN corporativo (`api.empresa.com`) a dos ho
 
 ---
 
+### 🎬 Sesiones Técnicas en Vídeo en YouTube (@nubenetes)
+
+Si prefieres seguir el despliegue, las pruebas de validación y los análisis arquitectónicos en formato vídeo y audio paso a paso, dispones de una serie técnica completa en [**youtube.com/@nubenetes**](https://youtube.com/@nubenetes):
+
+1. 🚀 [**OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API**](https://www.youtube.com/watch?v=kIEqhHRf-Ks) *(9m 06s)*  
+   *Análisis a fondo:* Walkthrough técnico de este repositorio en OpenShift ROSA (AWS). Comparativa de Solución A (`IngressRoute`) vs. Solución B (`HTTPRoute`), integración con AWS NLB y PROXY Protocol v2, mTLS estricto (TLS 1.3) y cumplimiento de SCC `restricted-v2`.
+2. 🎯 [**FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API**](https://www.youtube.com/watch?v=zUq_CYC7vM8) *(9m 25s)*  
+   *Análisis a fondo:* Cómo superar el bloqueo estricto del Corefile de CoreDNS en OpenShift con Traefik Proxy v3 y Gateway API. Evaluación práctica de Patrón A (Reenvío con DNS Operator) vs. Patrón B (Split-Horizon Route 53).
+3. 🎙️ [**Unified FQDN Routing with Traefik alternatives**](https://www.youtube.com/watch?v=xuDtcUZYeHU) *(8m 14s)*  
+   *Análisis a fondo:* Alternativas a Traefik para FQDN unificado: Cilium eBPF en kernel vs. Istio Ambient mode, eliminación del "impuesto de sidecar" (0 MB de RAM por pod) y comparativa de flujos Capa 4 vs. Capa 7.
+4. 🎙️ [**Gateway API y FQDNs**](https://www.youtube.com/watch?v=vay32AcPJ9Q) *(8m 44s)*  
+   *Análisis a fondo:* Evolución del estándar Kubernetes Gateway API v1.1 GA hacia 2026, resolución de FQDNs de doble plano y erradicación del drift de entornos en arquitecturas multicloud.
+
+---
+
 ### 🔗 Explora el Repositorio y Prueba el Despliegue
 
 Te invito a clonar el repositorio, revisar los diagramas de arquitectura en Mermaid y probar los scripts de despliegue en tu propio clúster:

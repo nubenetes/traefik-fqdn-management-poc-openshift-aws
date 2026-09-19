@@ -16,8 +16,8 @@
   <img src="https://img.shields.io/badge/SCC-restricted--v2%20Compliant-4C51BF?style=flat-square&logo=redhat&logoColor=white" alt="OpenShift restricted-v2 SCC"/>
   <img src="https://img.shields.io/badge/DNS-AWS%20Route%2053%20%2B%20ExternalDNS-527FFF?style=flat-square&logo=amazonroute53&logoColor=white" alt="Route53 ExternalDNS"/>
   <img src="https://img.shields.io/badge/L4%20Ingress-PROXY%20Protocol%20v2-232F3E?style=flat-square&logo=amazon&logoColor=white" alt="PROXY Protocol v2"/>
-  <img src="https://img.shields.io/badge/Protocol-HTTP%2F3%20%26%20gRPC-00ADD8?style=flat-square&logo=go&logoColor=white" alt="HTTP3 gRPC"/>
   <img src="https://img.shields.io/badge/Traffic-North--South%20%26%20East--West-38A169?style=flat-square&logo=diagram-next&logoColor=white" alt="Traffic Routing"/>
+  <a href="https://youtube.com/@nubenetes"><img src="https://img.shields.io/badge/YouTube-@nubenetes%20Masterclasses-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="YouTube Masterclasses"/></a>
   <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square" alt="License"/>
 </p>
 
@@ -63,6 +63,7 @@
   - [3. CNCF Kubernetes Gateway API Specifications](#3-cncf-kubernetes-gateway-api-specifications)
   - [4. AWS Cloud Networking, NLB & DNS Automation](#4-aws-cloud-networking-nlb--dns-automation)
   - [5. Zero-Trust Architecture, mTLS & Security Standards](#5-zero-trust-architecture-mtls--security-standards)
+  - [6. 🎬 YouTube Video Walkthroughs & Technical Masterclasses (@nubenetes)](#6--youtube-video-walkthroughs--technical-masterclasses-nubenetes)
 
 ---
 
@@ -658,4 +659,27 @@ This proof of concept and its architectural blueprints are grounded in official 
   *Context & Evidence:* IETF standard defining the performance and cryptographic improvements of TLS 1.3, including 1-RTT handshakes, removal of legacy insecure ciphers, and mandatory certificate verification during `CertificateRequest`.
 - [CNCF Cloud Native Security Whitepaper](https://github.com/cncf/tag-security/blob/main/security-whitepaper/cloud-native-security-whitepaper.md)  
   *Context & Evidence:* CNCF Security TAG best practices for securing container platforms, identity-centric microsegmentation, and mitigating the resource overhead of service-to-service encryption.
+
+### 6. 🎬 YouTube Video Walkthroughs & Technical Masterclasses (@nubenetes)
+
+The implementations, manifests, and architectural trade-offs demonstrated across this repository are thoroughly explained in technical video sessions published on the official [**nubenetes YouTube Channel (@nubenetes)**](https://youtube.com/@nubenetes):
+
+| Video Masterclass | Architectural Scope & Focus | Watch on YouTube |
+| :--- | :--- | :--- |
+| **OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API** | Full architectural walkthrough of this repository: Traefik CRDs (`IngressRoute`) vs. Gateway API (`HTTPRoute`), AWS NLB integration with PROXY Protocol v2, strict mTLS (TLS 1.3), and `restricted-v2` SCC compliance on ROSA. | [▶️ Ver Vídeo (9:06)](https://www.youtube.com/watch?v=kIEqhHRf-Ks) |
+| **FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API** | Deep dive into solving the OpenShift CoreDNS immutability barrier with Traefik Proxy v3 and Kubernetes Gateway API without paying the sidecar memory tax. Contrasting Pattern A (DNS Operator forwarding) with Pattern B (Split-Horizon Route 53). | [▶️ Ver Vídeo (9:25)](https://www.youtube.com/watch?v=zUq_CYC7vM8) |
+| **Unified FQDN Routing with Traefik alternatives** | Alternatives to Traefik for unified FQDN routing: in-kernel eBPF Cilium vs. Istio Ambient mode, sidecarless data plane efficiency (0 MB pod RAM overhead), OpenShift CoreDNS immutability, and L4 vs. L7 packet flow analysis. | [▶️ Ver Vídeo (8:14)](https://www.youtube.com/watch?v=xuDtcUZYeHU) |
+| **Gateway API y FQDNs** | Evolution of the Kubernetes Gateway API standard (`gateway.networking.k8s.io/v1`) towards 2026, dual-plane FQDN resolution (North-South external ingress & East-West in-cluster microservices), and avoiding environment drift across EKS, AKS, GKE, and ROSA. | [▶️ Ver Vídeo (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q) |
+
+#### Video References & Deep-Dive Summaries:
+
+- 🚀 [**OpenShift con FQDN en north-south y east-west: Traefik vs Gateway API** (9:06)](https://www.youtube.com/watch?v=kIEqhHRf-Ks)  
+  *Context & Evidence:* Step-by-step walkthrough of this repository on Red Hat OpenShift on AWS (ROSA). Explains how to deploy Solution A (`IngressRoute`, `Middleware`, `TLSOption`) and Solution B (`Gateway`, `HTTPRoute`, `BackendTLSPolicy`), configure AWS NLB with PROXY Protocol v2, bypass the default OpenShift HAProxy router, avoid public hairpinning, and enforce TLS 1.3 under `restricted-v2` SCC.
+- 🎯 [**FQDN unificado en OpenShift para north-south y east-west con Traefik y Gateway API** (9:25)](https://www.youtube.com/watch?v=zUq_CYC7vM8)  
+  *Context & Evidence:* Platform engineering analysis on bypassing the strict OpenShift CoreDNS `Corefile` immutability using Traefik Proxy v3 (~45MB RAM). Compares Pattern A (secondary unprivileged CoreDNS pod forwarded by OpenShift DNS Operator) vs. Pattern B (Split-Horizon Route 53 Private Hosted Zone pointing to Traefik's internal ClusterIP).
+- 🎙️ [**Unified FQDN Routing with Traefik alternatives** (8:14)](https://www.youtube.com/watch?v=xuDtcUZYeHU)  
+  *Context & Evidence:* Analyzes how to implement Unified FQDN using alternatives to Traefik, specifically in-kernel eBPF (Cilium) and sidecarless Istio Ambient (`ztunnel`), comparing memory footprints and explaining why L7 proxies require successful L4 TCP connections before routing.
+- 🎙️ [**Gateway API y FQDNs** (8:44)](https://www.youtube.com/watch?v=vay32AcPJ9Q)  
+  *Context & Evidence:* Dissects the CNCF Gateway API v1.1 GA standard, why `HTTPRoute` does not resolve in-cluster DNS by default, and how to design dual-plane FQDN architectures that prevent configuration drift between external and internal environments.
+
 
