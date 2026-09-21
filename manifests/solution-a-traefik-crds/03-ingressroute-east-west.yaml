@@ -8,8 +8,8 @@
 # Description:
 #   Zero-Trust East-West internal routing architecture. Implements strict Mutual
 #   TLS (mTLS) between internal microservices using Traefik v3.0+ 'TLSOption' and
-#   'ServersTransport' CRDs. Enforces internal cluster FQDN validation
-#   ('service-b.apps.cluster.local'), client certificate verification against an
+#   'ServersTransport' CRDs. Enforces Unified Enterprise FQDN validation
+#   ('service-b.company.com'), client certificate verification against an
 #   internal corporate CA bundle, and IP boundary checks to stop cross-namespace spoofing.
 # ==============================================================================
 
@@ -83,7 +83,7 @@ metadata:
     app.kubernetes.io/part-of: traefik-poc
     solution: solution-a-crd
 spec:
-  serverName: "service-b.apps.cluster.local"
+  serverName: "service-b.company.com"
   rootCAsSecrets:
     - internal-ca-secret
   certificatesSecrets:
@@ -110,15 +110,15 @@ metadata:
     routing.traefik.io/tier: internal-east-west
     solution: solution-a-crd
   annotations:
-    description: "Secure East-West routing for Service-A calling Service-B with mTLS"
+    description: "Secure East-West routing for Service-A calling Service-B with mTLS via Unified FQDN"
     traffic.openshift.io/route-tier: "internal-cluster-mesh"
 spec:
   # Internal mesh entrypoint (isolated from public AWS NLB listener)
   entryPoints:
     - websecure
   routes:
-    # Strict FQDN matching: requires exact internal cluster FQDN in Host header & SNI
-    - match: Host(`service-b.apps.cluster.local`) && PathPrefix(`/api/v1/internal`)
+    # Strict Unified FQDN matching: requires canonical enterprise domain in Host header & SNI
+    - match: Host(`service-b.company.com`) && PathPrefix(`/api/v1/internal`)
       kind: Rule
       middlewares:
         # Enforces CIDR-level perimeter checks against non-cluster pods

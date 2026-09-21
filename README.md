@@ -251,7 +251,7 @@ East-West traffic governs internal, secure communication between services across
 %%{init: {"flowchart": {"wrappingWidth": 380, "nodePadding": 24, "diagramPadding": 30}}}%%
 flowchart TD
     subgraph Client_Tier ["<b>1. Consumer Microservice Tier</b>"]
-        ServiceA["<b>Service-A Pod (Client Workload)</b><br/><br/>• OpenShift internal caller namespace<br/>• Target: service-b.traefik-crd-poc.svc.cluster.local<br/>• Presents Internal Root CA Client Certificate<br/>&nbsp;"]
+        ServiceA["<b>Service-A Pod (Client Workload)</b><br/><br/>• OpenShift internal caller namespace<br/>• Target: service-b.company.com (Unified FQDN)<br/>• Presents Internal Root CA Client Certificate<br/>&nbsp;"]
     end
 
     subgraph Ingress_Tier ["<b>2. Ingress & Mesh Data Plane (traefik-system)</b>"]
@@ -269,9 +269,9 @@ flowchart TD
 
     subgraph SolB ["<b>3B. Solution B: Gateway API</b>"]
         direction TB
-        GW_Internal["<b>Gateway Listener (:8443)</b><br/><br/>• Host: *.apps.cluster.local (Internal Horizon)<br/>• Protocol: HTTPS Terminate & Validate<br/>&nbsp;"]
+        GW_Internal["<b>Gateway Listener (:8443)</b><br/><br/>• Host: service-b.company.com (Unified Ingress Horizon)<br/>• Protocol: HTTPS Terminate & Validate<br/>&nbsp;"]
         HR_Filter["<b>HTTPRoute Security Filters</b><br/><br/>• Injects Verified Caller Identity Headers<br/>• URL Rewrite & Security Extension Filters<br/>&nbsp;"]
-        BTLP["<b>BackendTLSPolicy (v1alpha3)</b><br/><br/>• Target Service: service-b<br/>• Validates SAN: service-b.apps.cluster.local<br/>• Trust Anchor: internal-ca-secret<br/>&nbsp;"]
+        BTLP["<b>BackendTLSPolicy (v1alpha3)</b><br/><br/>• Target Service: service-b<br/>• Validates SAN: service-b.company.com<br/>• Trust Anchor: internal-ca-secret<br/>&nbsp;"]
         ServiceB_B["<b>Service-B Pod (Provider API)</b><br/><br/>• Namespace: traefik-gateway-poc<br/>• Listens on :8443 (HTTPS)<br/>• Verifies Traefik Proxy Cryptographic Identity<br/>&nbsp;"]
         GW_Internal --> HR_Filter --> BTLP --> ServiceB_B
     end
@@ -283,9 +283,10 @@ flowchart TD
 
 ### Hop-by-Hop East-West & mTLS Mechanics Breakdown
 
-1. **Targeting Internal Cluster FQDNs:**
-   - Rather than communicating directly over ephemeral pod IPs or standard Kubernetes CoreDNS `service-b.namespace.svc.cluster.local` addresses without ingress visibility, `Service-A` routes through Traefik using dedicated internal FQDNs: `service-b.apps.cluster.local`.
-   - CoreDNS or cluster `/etc/hosts` resolves `*.apps.cluster.local` to Traefik's internal cluster IP, establishing centralized observability, rate limiting, and access audit logging.
+1. **Targeting Internal Microservices via Unified Enterprise FQDN:**
+   - Rather than relying on Kubernetes-internal cluster-scoped domains (such as `service-b.namespace.svc.cluster.local`), `Service-A` routes through Traefik using the canonical **Unified Enterprise FQDN**: `service-b.company.com`.
+   - Both internal workloads and external systems reference the exact same corporate domain identity, completely decoupling applications from OpenShift/Kubernetes cluster-internal naming (`*.cluster.local`).
+   - Private name resolution (via AWS Route 53 Private Hosted Zone or Traefik's internal VIP) resolves `service-b.company.com` directly to Traefik's internal listener, establishing centralized observability, rate limiting, and zero-trust mTLS audit logging.
 
 2. **mTLS Handshake Enforcement (`RequireAndVerifyClientCert`):**
    - When `Service-A` establishes an HTTPS connection to Traefik, Traefik initiates a TLS 1.3 handshake and requests a client certificate (`CertificateRequest`).
@@ -293,14 +294,14 @@ flowchart TD
    - Traefik cryptographically verifies the entire certificate chain against `internal-ca-secret`. If the client certificate is missing, expired, or signed by an untrusted CA, the connection is instantly aborted with a TLS alert (`handshake failure`).
 
 3. **Anti-Spoofing & Cross-Namespace Domain Validation:**
-   - To prevent a rogue pod in an unprivileged namespace from intercepting or spoofing `service-b.apps.cluster.local`:
-     - **SNI & Host Header Enforcement:** Traefik verifies that the TLS Server Name Indication (SNI) matches the HTTP `Host` header (`service-b.apps.cluster.local`). Mismatches result in an immediate `400 Bad Request`.
+   - To prevent a rogue pod in an unprivileged namespace from intercepting or spoofing `service-b.company.com`:
+     - **SNI & Host Header Enforcement:** Traefik verifies that the TLS Server Name Indication (SNI) matches the HTTP `Host` header (`service-b.company.com`). Mismatches result in an immediate `400 Bad Request`.
      - **IP Perimeter Filtering (Solution A Middleware):** Traefik applies the `middleware-internal-east-west-allowlist` ensuring the calling pod originates strictly within the OpenShift OVN-Kubernetes cluster pod network (`10.128.0.0/14`) or the AWS VPC subnet (`10.0.0.0/16`). External internet IPs hitting the internal listener are discarded.
      - **Gateway API Route Attachment Controls (Solution B):** The `aws-edge-gateway` explicitly restricts East-West listener attachments using `allowedRoutes.namespaces.from: Selector` with matching labels `solution: solution-b-gateway-api`. Workloads in unauthorized namespaces cannot bind routes to the internal domain.
 
 4. **Zero-Trust Backend Encryption (Traefik to Upstream Pod):**
-   - **Solution A (`ServersTransport`):** Traefik initiates an encrypted HTTPS connection to `service-b:8443`. It validates the backend pod's certificate against `internal-ca-secret` and verifies that the certificate's Subject Alternative Name (SAN) matches `service-b.apps.cluster.local`.
-   - **Solution B (`BackendTLSPolicy`):** Gateway API's declarative `BackendTLSPolicy` configures Traefik to enforce strict TLS verification against `service-b`, anchoring trust directly to `internal-ca-secret` and rejecting any untrusted upstream endpoint.
+   - **Solution A (`ServersTransport`):** Traefik initiates an encrypted HTTPS connection to `service-b:8443`. It validates the backend pod's certificate against `internal-ca-secret` and verifies that the certificate's Subject Alternative Name (SAN) matches the unified FQDN `service-b.company.com`.
+   - **Solution B (`BackendTLSPolicy`):** Gateway API's declarative `BackendTLSPolicy` configures Traefik to enforce strict TLS verification against `service-b`, anchoring trust directly to `internal-ca-secret` and validating the SAN `service-b.company.com`.
 
 ### Architectural Deep-Dive: Split-Horizon Ingress vs. CoreDNS Immutability
 
@@ -313,8 +314,8 @@ flowchart TD
 
 **The Traefik Split-Horizon Ingress Solution:**
 Instead of modifying cluster DNS infrastructure, this architecture decouples traffic into two Layer 7 horizons:
-1. **Internal Horizon Listener:** Traefik binds a dedicated internal listener on port `8443`. Intra-cluster microservices communicate using native service FQDNs (`service-b.traefik-crd-poc.svc.cluster.local`) or cluster conventions (`service-b.apps.cluster.local`). Traefik validates TLS certificates, verifies SNI, and executes header rewrites via `middleware-forwarded-host-mutation` ([`02-middleware-security.yaml`](./manifests/solution-a-traefik-crds/02-middleware-security.yaml)).
-2. **Zero-Privilege Pod `hostAliases`:** For applications with hardcoded external domains (`api.company.com`), development teams add `spec.hostAliases` to their own pod `Deployment` spec, directing the public FQDN directly to Traefik's internal `ClusterIP`. This eliminates external hairpinning to the AWS NLB (saving 15–40ms latency and AWS cross-AZ data egress fees) with zero operator changes and zero cluster-admin privileges.
+1. **Internal Horizon Listener:** Traefik binds a dedicated internal listener on port `8443`. Intra-cluster microservices communicate using the unified enterprise domain (`service-b.company.com`). Traefik validates TLS certificates, verifies SNI, and executes header rewrites via `middleware-forwarded-host-mutation` ([`02-middleware-security.yaml`](./manifests/solution-a-traefik-crds/02-middleware-security.yaml)).
+2. **Zero-Privilege Pod `hostAliases` or Route 53 Private Hosted Zones:** For applications targeting the canonical FQDN (`service-b.company.com` or `api.company.com`), development teams leverage AWS Route 53 Private Hosted Zones or add `spec.hostAliases` to their own pod `Deployment` spec, directing the corporate FQDN directly to Traefik's internal `ClusterIP`. This eliminates external hairpinning to the public AWS NLB (saving 15–40ms latency and AWS cross-AZ data egress fees) with zero operator changes and zero cluster-admin privileges.
 
 ### Zero-Sidecar Efficiency vs. Service Mesh Overhead
 
@@ -462,15 +463,15 @@ curl -k -sI -H "Host: api.company.com" "https://${NLB_HOSTNAME}/api/v1/resource"
 # Execute internal test from Service-A Pod in traefik-crd-poc namespace
 CLIENT_POD=$(oc get pod -l app=service-a -n traefik-crd-poc -o jsonpath='{.items[0].metadata.name}')
 
-# Attempt 1: Call Service-B WITHOUT client certificate (Must Fail Handshake)
+# Attempt 1: Call Service-B WITHOUT client certificate using Unified FQDN (Must Fail Handshake)
 oc exec -n traefik-crd-poc "${CLIENT_POD}" -- \
-  curl -k -s -o /dev/null -w "%{http_code}\n" "https://service-b.apps.cluster.local:8443/api/v1/internal" || echo "Handshake rejected as expected"
+  curl -k -s -o /dev/null -w "%{http_code}\n" "https://service-b.company.com:8443/api/v1/internal" || echo "Handshake rejected as expected"
 
-# Attempt 2: Call Service-B WITH valid internal client certificate (Must Succeed 200 OK)
+# Attempt 2: Call Service-B WITH valid internal client certificate & Unified FQDN Host Header (Must Succeed 200 OK)
 oc exec -n traefik-crd-poc "${CLIENT_POD}" -- \
   curl -k -s --cert /var/run/secrets/tls/client.crt --key /var/run/secrets/tls/client.key \
-  -H "Host: service-b.apps.cluster.local" \
-  "https://traefik-loadbalancer.traefik-system.svc.cluster.local:8443/api/v1/internal"
+  -H "Host: service-b.company.com" \
+  "https://traefik-loadbalancer.traefik-system:8443/api/v1/internal"
 ```
 
 ---
@@ -560,7 +561,7 @@ The visual infographic above provides an executive architecture overview of the 
 * **3. East-West Traffic & Zero-Trust Architecture (Internal Horizon):**
   * **Cryptographic mTLS Enforcement:** Enforces strict TLS 1.3 mutual authentication (`clientAuthType: RequireAndVerifyClientCert`) validated against internal corporate Root CAs without injecting sidecar proxies.
   * **Anti-Spoofing & Network Perimeter Validation:** Traefik verifies that the TLS Server Name Indication (SNI) matches the HTTP `Host` header, while the `ipAllowList` middleware ensures callers originate strictly from within the OpenShift OVN-Kubernetes pod network (`10.128.0.0/14`) and VPC subnets (`10.0.0.0/16`).
-  * **Internal FQDN Routing vs. Ephemeral Pod IPs:** Internal callers target stable in-cluster FQDNs (e.g., `service-b.traefik-crd-poc.svc.cluster.local`), avoiding fragile pod IP tracking and establishing centralized access logging.
+  * **Unified Enterprise FQDN Routing vs. Ephemeral Pod IPs:** Internal callers target canonical corporate domains (e.g., `service-b.company.com`), avoiding fragile pod IP tracking, eliminating `.cluster.local` dependencies, and establishing centralized access logging.
   * **Declarative Upstream Trust Anchoring:** Solution A pins backend identities via `ServersTransport`; Solution B standardizes upstream pod TLS validation via the Gateway API `BackendTLSPolicy` (`gateway.networking.k8s.io/v1alpha3`).
 
 * **4. Comparative Matrix & Ingress Decision Heuristics:**
@@ -584,22 +585,22 @@ Within the **nubenetes** cloud-native engineering portfolio, this AWS ROSA / Tra
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────┐
-│  APPROACH 1: Split-Horizon Ingress via Traefik Service (This Repository)                   │
+│  APPROACH 1: Split-Horizon Ingress via Unified FQDN (This Repository)                      │
 ├────────────────────────────────────────────────────────────────────────────────────────────┤
-│  Client Pod Syntax: `curl -H "Host: service-b.apps.cluster.local"                          │
-│                           https://traefik.traefik-system.svc.cluster.local:8443`           │
-│  • Client targets Traefik's native cluster Service FQDN (`*.svc.cluster.local`).           │
-│  • L3/L4 Resolution: 100% native CoreDNS out-of-the-box! Zero forwarders, zero patches.    │
+│  Client Pod Syntax: `curl -H "Host: service-b.company.com" https://traefik-internal:8443`  │
+│                     or `curl https://service-b.company.com:8443/api/v1/internal`           │
+│  • Unified FQDN: Canonical corporate domain `service-b.company.com` (no `cluster.local`).  │
+│  • L3/L4 Resolution: AWS Route 53 Private Zone or internal VIP resolves to Traefik.        │
 │  • L7 Policy: Traefik inspects HTTP `Host` & SNI, validates client certs (`TLSOption`),    │
 │    checks OVN CIDRs (`middleware-internal-east-west-allowlist`), and routes to pod.        │
-│  • Primary Focus: Production AWS ROSA with AWS NLB & Route 53 automation.                  │
+│  • Primary Focus: Production AWS ROSA with AWS NLB & Route 53 Split-Horizon automation.    │
 └────────────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────────────────────────────────────────────────┐
 │  APPROACH 2: Transparent In-Cluster DNS Interception (cloudnative-ingress-mesh-lab)        │
 ├────────────────────────────────────────────────────────────────────────────────────────────┤
-│  Client Pod Syntax: `curl http://backend.internal.corp/api`                                │
-│  • Client is completely agnostic to gateway addresses; calls business FQDN directly.       │
+│  Client Pod Syntax: `curl https://service-b.company.com/api`                               │
+│  • Unified FQDN: Microservice calls `service-b.company.com` directly without proxy headers.│
 │  • L3/L4 Resolution: Handled via OpenShift DNS Operator zone forward (`spec.servers`)      │
 │    pointing to an unprivileged secondary CoreDNS (`infra-dns`), or in-kernel eBPF          │
 │    socket proxy (Cilium), or node-level ztunnel DNS capture (Istio Ambient).               │
@@ -613,8 +614,8 @@ Within the **nubenetes** cloud-native engineering portfolio, this AWS ROSA / Tra
 | Evaluation Dimension | `traefik-fqdn-management-poc-openshift-aws` (This Repository) | `cloudnative-ingress-mesh-lab` (Companion Project) |
 | :--- | :--- | :--- |
 | **Primary Scope** | **Production Deep-Dive**: Enterprise deployment on Red Hat OpenShift on AWS (ROSA v4.14+). | **Multi-Engine Comparative Lab**: 6-way benchmark (Cilium, Istio Ambient, Traefik, Linkerd, Envoy Gateway, Kong). |
-| **East-West DNS Strategy** | **Split-Horizon Ingress Horizon**: Microservices call Traefik's native `svc.cluster.local` address carrying the business domain in `Host`, or resolve via AWS Route 53 Private Zones. | **Transparent In-Cluster Interception**: Microservices call `backend.internal.corp` directly; resolved via secondary resolver (`infra-dns`), pod `hostAliases`, or in-kernel eBPF. |
-| **OpenShift DNS Operator Impact** | **0% Operator Changes**: No secondary CoreDNS forwarder and no pod `hostAliases` needed; utilizes native `svc.cluster.local` DNS. | Evaluates Pattern A (patching `dns.operator.openshift.io/default` `spec.servers`) and Pattern B (`hostAliases`). |
+| **East-West DNS Strategy** | **Unified FQDN Split-Horizon Ingress**: Microservices use canonical corporate domains (`service-b.company.com`) without `.cluster.local`, resolved via AWS Route 53 Private Zones or internal ingress proxy. | **Transparent In-Cluster Interception**: Microservices call unified FQDN (`service-b.company.com`) directly; intercepted via secondary CoreDNS (`infra-dns`), pod `hostAliases`, or in-kernel eBPF. |
+| **OpenShift DNS Operator Impact** | **0% Operator Changes**: Resolves via AWS Route 53 Private Hosted Zone or internal VIP with zero modifications to OpenShift CoreDNS. | Evaluates Pattern A (patching `dns.operator.openshift.io/default` `spec.servers`) and Pattern B (`hostAliases`). |
 | **Infrastructure Portability** | **AWS Cloud-Native**: Optimized for AWS NLB (L4 PROXY protocol v2), ExternalDNS with Route 53, and ROSA VPC networking. | **Distribution-Agnostic**: Identical manifests for Bare-Metal, Kind, OpenShift, AWS EKS, Azure AKS, Google GKE, and SUSE RKE2. |
 | **Zero-Trust mTLS Data Plane** | Centralized gateway mTLS via Traefik `TLSOption` (`RequireAndVerifyClientCert`) and `BackendTLSPolicy` (v1alpha3). | Compares in-kernel eBPF socket maps (Cilium), node-level ztunnel HBONE (Istio Ambient), and Gateway API proxies. |
 | **Detailed Technical Reading** | See [`COMPARATIVE_MATRIX.md`](./COMPARATIVE_MATRIX.md). | See [`docs/FQDN_ROUTING.md`](https://github.com/nubenetes/cloudnative-ingress-mesh-lab/blob/main/docs/FQDN_ROUTING.md). |

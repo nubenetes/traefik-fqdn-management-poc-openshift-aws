@@ -9,7 +9,7 @@
 #   Internal East-West microservice routing using standard Gateway API resources.
 #   Implements strict mTLS and backend cryptographic verification via
 #   'BackendTLSPolicy' (gateway.networking.k8s.io/v1alpha3) and HTTPRoute filters.
-#   Enforces cluster FQDN routing for 'service-b.apps.cluster.local', client identity
+#   Enforces Unified Enterprise FQDN routing for 'service-b.company.com', client identity
 #   propagation, and prevents cross-namespace domain impersonation.
 # ==============================================================================
 
@@ -42,7 +42,7 @@ spec:
         kind: Secret
         name: internal-ca-secret
     # Strictly validates the SAN (Subject Alternative Name) on the upstream certificate
-    hostname: "service-b.apps.cluster.local"
+    hostname: "service-b.company.com"
 
 ---
 # ------------------------------------------------------------------------------
@@ -65,7 +65,7 @@ spec:
       namespace: traefik-system
       sectionName: https-internal-east-west
   hostnames:
-    - "service-b.apps.cluster.local"
+    - "service-b.company.com"
   rules:
     - matches:
         - path:
@@ -84,7 +84,7 @@ spec:
               - name: X-Authenticated-Issuer
                 value: "corporate-internal-ca"
               - name: X-Forwarded-Cluster-FQDN
-                value: "service-b.apps.cluster.local"
+                value: "service-b.company.com"
             add:
               - name: X-Transit-Timestamp
                 value: "epoch-micros"

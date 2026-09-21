@@ -86,12 +86,12 @@ spec:
 
     # --------------------------------------------------------------------------
     # 3. HTTPS East-West Internal Mesh Listener (Port 8443)
-    # Restricted to internal cluster communication (*.apps.cluster.local)
+    # Restricted to internal unified enterprise communication (*.company.com)
     # --------------------------------------------------------------------------
     - name: https-internal-east-west
       protocol: HTTPS
       port: 8443
-      hostname: "*.apps.cluster.local"
+      hostname: "*.company.com"
       tls:
         mode: Terminate
         certificateRefs:
