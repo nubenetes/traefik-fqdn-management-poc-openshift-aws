@@ -220,33 +220,33 @@ While this repository focuses on an **AWS-native production implementation** on 
 ### 5.2 The Core Architectural Distinction: Two Paradigms for East-West FQDNs
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  PARADIGM A: Split-Horizon Ingress via Traefik Service (This Repository)               │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│  • Developer Calling Syntax: `curl -H "Host: service-b.apps.cluster.local"             │
-│                                    https://traefik.traefik-system.svc.cluster.local`   │
-│  • L3/L4 Socket Establishment: The caller connects to Traefik's native cluster Service │
-│    name (`*.svc.cluster.local`). OpenShift CoreDNS resolves this natively with ZERO    │
-│    cluster configuration changes.                                                      │
-│  • L7 Policy Enforcement: Traefik inspects HTTP `Host`, validates client certs        │
-│    (`TLSOption` with `RequireAndVerifyClientCert`), checks OVN-Kubernetes CIDR         │
-│    allowlists, and proxies to upstream pods.                                           │
-│  • Result: 0% DNS Operator patches, 0 secondary forwarders, 0 pod `hostAliases`.       │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│  PARADIGM A: Split-Horizon Ingress via Traefik Service (This Repository)                   │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│  • Developer Calling Syntax: `curl -H "Host: service-b.apps.cluster.local"                 │
+│                                    https://traefik.traefik-system.svc.cluster.local`       │
+│  • L3/L4 Socket Establishment: The caller connects to Traefik's native cluster Service     │
+│    name (`*.svc.cluster.local`). OpenShift CoreDNS resolves this natively with ZERO        │
+│    cluster configuration changes.                                                          │
+│  • L7 Policy Enforcement: Traefik inspects HTTP `Host`, validates client certs             │
+│    (`TLSOption` with `RequireAndVerifyClientCert`), checks OVN-Kubernetes CIDR             │
+│    allowlists, and proxies to upstream pods.                                               │
+│  • Result: 0% DNS Operator patches, 0 secondary forwarders, 0 pod `hostAliases`.           │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
 
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  PARADIGM B: Transparent In-Cluster DNS Interception (cloudnative-ingress-mesh-lab)   │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│  • Developer Calling Syntax: `curl http://backend.internal.corp/api`                   │
-│  • L3/L4 Socket Establishment: The client pod literally requests the business FQDN.    │
-│    Requires underlying name resolution before TCP SYN can be emitted.                  │
-│  • Interception Mechanics:                                                             │
-│    1. OpenShift DNS Operator zone forward (`spec.servers`) to an in-cluster secondary │
-│       CoreDNS forwarder (`infra-dns`) executing regular expression rewrites.           │
-│    2. Pod-level `hostAliases` injecting static `/etc/hosts` mappings.                  │
-│    3. In-kernel eBPF socket proxy (Cilium) or node-level ztunnel capture (Ambient).   │
-│  • Result: Microservices are 100% cloud/gateway-agnostic; no custom headers needed.   │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│  PARADIGM B: Transparent In-Cluster DNS Interception (cloudnative-ingress-mesh-lab)        │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│  • Developer Calling Syntax: `curl http://backend.internal.corp/api`                       │
+│  • L3/L4 Socket Establishment: The client pod literally requests the business FQDN.        │
+│    Requires underlying name resolution before TCP SYN can be emitted.                      │
+│  • Interception Mechanics:                                                                 │
+│    1. OpenShift DNS Operator zone forward (`spec.servers`) to an in-cluster secondary      │
+│       CoreDNS forwarder (`infra-dns`) executing regular expression rewrites.               │
+│    2. Pod-level `hostAliases` injecting static `/etc/hosts` mappings.                      │
+│    3. In-kernel eBPF socket proxy (Cilium) or node-level ztunnel capture (Ambient).        │
+│  • Result: Microservices are 100% cloud/gateway-agnostic; no custom headers needed.        │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 5.3 Cross-Repository Comparative Matrix

@@ -583,29 +583,29 @@ Within the **nubenetes** cloud-native engineering portfolio, this AWS ROSA / Tra
 ### How They Differ (Two Distinct Architectural Philosophies):
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  APPROACH 1: Split-Horizon Ingress via Traefik Service (This Repository)               │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│  Client Pod Syntax: `curl -H "Host: service-b.apps.cluster.local"                      │
-│                           https://traefik.traefik-system.svc.cluster.local:8443`       │
-│  • Client targets Traefik's native cluster Service FQDN (`*.svc.cluster.local`).       │
-│  • L3/L4 Resolution: 100% native CoreDNS out-of-the-box! Zero forwarders, zero patches.│
-│  • L7 Policy: Traefik inspects HTTP `Host` & SNI, validates client certs (`TLSOption`), │
-│    checks OVN CIDRs (`middleware-internal-east-west-allowlist`), and routes to pod.    │
-│  • Primary Focus: Production AWS ROSA with AWS NLB & Route 53 automation.              │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│  APPROACH 1: Split-Horizon Ingress via Traefik Service (This Repository)                   │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Client Pod Syntax: `curl -H "Host: service-b.apps.cluster.local"                          │
+│                           https://traefik.traefik-system.svc.cluster.local:8443`           │
+│  • Client targets Traefik's native cluster Service FQDN (`*.svc.cluster.local`).           │
+│  • L3/L4 Resolution: 100% native CoreDNS out-of-the-box! Zero forwarders, zero patches.    │
+│  • L7 Policy: Traefik inspects HTTP `Host` & SNI, validates client certs (`TLSOption`),    │
+│    checks OVN CIDRs (`middleware-internal-east-west-allowlist`), and routes to pod.        │
+│  • Primary Focus: Production AWS ROSA with AWS NLB & Route 53 automation.                  │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
 
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  APPROACH 2: Transparent In-Cluster DNS Interception (cloudnative-ingress-mesh-lab)   │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│  Client Pod Syntax: `curl http://backend.internal.corp/api`                            │
-│  • Client is completely agnostic to gateway addresses; calls business FQDN directly.   │
-│  • L3/L4 Resolution: Handled via OpenShift DNS Operator zone forward (`spec.servers`)  │
-│    pointing to an unprivileged secondary CoreDNS (`infra-dns`), or in-kernel eBPF     │
-│    socket proxy (Cilium), or node-level ztunnel DNS capture (Istio Ambient).           │
-│  • Primary Focus: 6-Way Comparative Lab (Cilium vs Istio Ambient vs Traefik vs Linkerd│
-│    vs Envoy Gateway vs Kong/Kuma) across OpenShift, EKS, AKS, GKE, and Bare-Metal.     │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│  APPROACH 2: Transparent In-Cluster DNS Interception (cloudnative-ingress-mesh-lab)        │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Client Pod Syntax: `curl http://backend.internal.corp/api`                                │
+│  • Client is completely agnostic to gateway addresses; calls business FQDN directly.       │
+│  • L3/L4 Resolution: Handled via OpenShift DNS Operator zone forward (`spec.servers`)      │
+│    pointing to an unprivileged secondary CoreDNS (`infra-dns`), or in-kernel eBPF          │
+│    socket proxy (Cilium), or node-level ztunnel DNS capture (Istio Ambient).               │
+│  • Primary Focus: 6-Way Comparative Lab (Cilium vs Istio Ambient vs Traefik vs Linkerd     │
+│    vs Envoy Gateway vs Kong/Kuma) across OpenShift, EKS, AKS, GKE, and Bare-Metal.         │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Architectural Comparison Matrix:
